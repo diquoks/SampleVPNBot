@@ -1,7 +1,13 @@
-import bot
+import logging
+import client
+
 
 def main():
-    bot.hello_world()
+    while True:
+        try:
+            client.vpn_bot.polling()
+        except:
+            logging.error(traceback.format_exc())
 
 
 if __name__ == '__main__':
