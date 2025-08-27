@@ -2,7 +2,7 @@ from __future__ import annotations
 import configparser, json
 
 
-class BotConfig:
+class ConfigProvider:
     """
     :var settings: ``SettingsConfig``
     """
@@ -10,7 +10,7 @@ class BotConfig:
     class IConfig:
         _SECTION: str = None
 
-        def __init__(self, parent: BotConfig) -> None:
+        def __init__(self, parent: ConfigProvider) -> None:
             self._config = configparser.ConfigParser()
             self._config.read("config.ini")
             if not self._config.has_section(self._SECTION):
@@ -32,7 +32,7 @@ class BotConfig:
         token: str | None
         admin_list: list[int] | str | None
 
-        def __init__(self, parent: BotConfig) -> None:
+        def __init__(self, parent: ConfigProvider) -> None:
             super().__init__(parent=parent)
             try:
                 self.admin_list = json.loads(self.admin_list)

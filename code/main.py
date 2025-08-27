@@ -5,7 +5,7 @@ import client
 def main():
     while True:
         try:
-            client.client.polling()
+            client.client.polling(non_stop=True)
         except:
             logging.error(traceback.format_exc())
 

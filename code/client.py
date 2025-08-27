@@ -1,17 +1,17 @@
 from __future__ import annotations
-import traceback, logging, telebot, sys, io
-import data, buttons
+import traceback, logging, telebot, io
+import buttons, data, utils
 
 
 class Client(telebot.TeleBot):
-    # TODO: добавить класс для взаимодействия с логами
     class ExceptionHandler(telebot.ExceptionHandler):
-        def handle(self, _):
+        def handle(self, _) -> bool:  # рассмотреть возможность не приватить параметр `exception`
+            # TODO: добавить класс для взаимодействия с логами
             logging.error(traceback.format_exc())
             return True
 
-    def __init__(self):
-        self._config = data.BotConfig()
+    def __init__(self) -> None:
+        self._config = data.ConfigProvider()
         logging.basicConfig(level=logging.INFO)
         super().__init__(
             token=self._config.settings.token,
@@ -22,28 +22,25 @@ class Client(telebot.TeleBot):
 client = Client()
 
 
-@client.message_handler(commands=["test"])
-def test(message: telebot.types.Message):
-    # TODO: при переносе функционала `config_key` должен выступать атрибутом функции
-    config_key = "test_dev_key"
-    logging.info(f"{sys._getframe().f_code.co_name}: {message.from_user.id} - \"{message.text}\"")
+@client.message_handler(commands=["start"])
+def start(message: telebot.types.Message) -> None:
+    utils.log_user_interaction(message.from_user.username, message.from_user.id, message.text)
 
-    file_obj = io.BytesIO(bytes(config_key, encoding="utf8"))
-    file_obj.name = "amnezia_config.vpn"
     markup = telebot.types.InlineKeyboardMarkup()
-    markup.row(buttons.copy_config_settings)
-    markup.row(buttons.download_amnezia)
-    client.send_document(
+    markup.row(buttons.view_plans, buttons.view_profile)
+    bot = client.get_me()
+    client.send_message(
         chat_id=message.chat.id,
         message_thread_id=message.message_thread_id,
-        document=file_obj,
-        caption="Ваш файл конфигурации\nдоступен для скачивания!",
-        reply_markup=markup,
+        text=f"Добро пожаловать в {bot.full_name}!",
+        reply_markup=markup
     )
 
 
-@client.callback_query_handler(func=lambda _: True)
-def callback(call: telebot.types.CallbackQuery):
+@client.callback_query_handler()
+def callback(call: telebot.types.CallbackQuery) -> None:
+    utils.log_user_interaction(call.from_user.username, call.from_user.id, call.data)
+
     try:
         if call.data == "copy_config_settings":
             if call.message.document:
@@ -67,7 +64,29 @@ def callback(call: telebot.types.CallbackQuery):
                 text="Скачать клиент Amnezia VPN:",
                 reply_markup=markup,
             )
+        else:
+            client.answer_callback_query(callback_query_id=call.id, text="Эта кнопка недоступна!", show_alert=True)
     except:
+        # TODO: добавить класс для взаимодействия с логами
         logging.error(traceback.format_exc())
-    finally:
-        client.answer_callback_query(callback_query_id=call.id)
+
+
+# TODO: временные функции
+
+@client.message_handler(commands=["test_config"])
+def send_config(message: telebot.types.Message, config_key: str = "test_dev_key") -> None:  # TODO: удалить "test_dev_key" при переносе функционала
+    utils.log_user_interaction(message.from_user.username, message.from_user.id, message.text)
+
+    markup = telebot.types.InlineKeyboardMarkup()
+    markup.row(buttons.copy_config_settings)
+    markup.row(buttons.download_amnezia)
+    bot = client.get_me()
+    file_obj = io.BytesIO(bytes(config_key, encoding="utf8"))
+    file_obj.name = f"{bot.full_name}_config.vpn"
+    client.send_document(
+        chat_id=message.chat.id,
+        message_thread_id=message.message_thread_id,
+        document=file_obj,
+        caption="Ваш файл конфигурации\nдоступен для скачивания!",
+        reply_markup=markup,
+    )
