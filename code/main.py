@@ -1,11 +1,11 @@
-import logging
+import traceback, logging
 import client
 
 
 def main():
     while True:
         try:
-            client.vpn_bot.polling()
+            client.client.polling()
         except:
             logging.error(traceback.format_exc())
 
