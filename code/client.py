@@ -21,11 +21,11 @@ class Client(telebot.TeleBot):
             token=self._config.settings.token,
             exception_handler=self._exception_handler,
         )
-        self.message_handler(commands=["start"])(self.start)
-        self.callback_query_handler()(self.callback)
+        self.register_message_handler(callback=self.start, commands=["start"])
+        self.register_callback_query_handler(callback=self.callback, func=lambda *args: True)
 
-        # TODO: временные функции
-        self.message_handler(commands=["test_config"])(self.send_config)
+        # TODO: тестовые функции
+        self.register_message_handler(callback=self.send_config, commands=["test_config"])
 
         self._logger.info(f"{self.bot.full_name} initialized!")
 
@@ -120,9 +120,8 @@ class Client(telebot.TeleBot):
         finally:
             self.answer_callback_query(callback_query_id=call.id)
 
-    # TODO: временные функции
-
-    def send_config(self, message: telebot.types.Message, config_key: str = str(None)) -> None:  # TODO: убрать значение `config_key` по умолчанию при переносе функции
+    # TODO: тестовые функции
+    def send_config(self, message: telebot.types.Message, config_key: str = str(None)) -> None:  # TODO: убрать значение `config_key` по умолчанию
         self._logger.log_user_interaction(message.from_user, message.text)
 
         file_obj = io.BytesIO(bytes(config_key, encoding="utf8"))
