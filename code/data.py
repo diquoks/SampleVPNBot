@@ -1,5 +1,5 @@
 from __future__ import annotations
-import configparser, datetime, logging, json, sys, os
+import configparser, datetime, logging, telebot, json, sys, os
 
 
 class ConfigProvider:
@@ -71,6 +71,9 @@ class LoggerService(logging.Logger):
             file_handler.setFormatter(logging.Formatter(fmt="$levelname $asctime - $message", datefmt="%d-%m-%y %H:%M:%S", style="$"))
             self.handlers.append(file_handler)
 
-    def log_user_interaction(self, username: str | None, user_id: int, interaction: str) -> None:
-        user_info = f"@{username} ({user_id})" if username else user_id
+    def log_user_interaction(self, user: telebot.types.User, interaction: str) -> None:
+        user_info = f"@{user.username} ({user.id})" if user.username else user.id
         self.info(f"{user_info} - \"{interaction}\"")
+
+    def log_exception(self, e: Exception) -> None:
+        self.error(msg=e, exc_info=True)

@@ -10,7 +10,7 @@ class Client(telebot.TeleBot):
             super().__init__()
 
         def handle(self, e) -> bool:
-            self._logger.error(msg=e, exc_info=True)
+            self._logger.log_exception(e)
             return True
 
     def __init__(self) -> None:
@@ -42,10 +42,10 @@ class Client(telebot.TeleBot):
             try:
                 self.polling(non_stop=True)
             except Exception as e:
-                self._logger.error(msg=e, exc_info=True)
+                self._logger.log_exception(e)
 
     def start(self, message: telebot.types.Message) -> None:
-        self._logger.log_user_interaction(message.from_user.username, message.from_user.id, message.text)
+        self._logger.log_user_interaction(message.from_user, message.text)
 
         markup = telebot.types.InlineKeyboardMarkup()
         markup.row(buttons.view_plans)
@@ -58,7 +58,7 @@ class Client(telebot.TeleBot):
         )
 
     def callback(self, call: telebot.types.CallbackQuery) -> None:
-        self._logger.log_user_interaction(call.from_user.username, call.from_user.id, call.data)
+        self._logger.log_user_interaction(call.from_user, call.data)
 
         try:
             if call.data == "start":
@@ -116,14 +116,14 @@ class Client(telebot.TeleBot):
                     show_alert=True,
                 )
         except Exception as e:
-            self._logger.error(msg=e, exc_info=True)
+            self._logger.log_exception(e)
         finally:
             self.answer_callback_query(callback_query_id=call.id)
 
     # TODO: временные функции
 
     def send_config(self, message: telebot.types.Message, config_key: str = str(None)) -> None:  # TODO: убрать значение `config_key` по умолчанию при переносе функции
-        self._logger.log_user_interaction(message.from_user.username, message.from_user.id, message.text)
+        self._logger.log_user_interaction(message.from_user, message.text)
 
         file_obj = io.BytesIO(bytes(config_key, encoding="utf8"))
         file_obj.name = f"{self.clean_username}_config.vpn"
