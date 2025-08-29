@@ -1,13 +1,11 @@
-import traceback, logging
+import threading
 import client
 
 
 def main():
-    while True:
-        try:
-            client.client.polling(non_stop=True)
-        except:
-            logging.error(traceback.format_exc())
+    bot = client.Client()
+    bot_thread = threading.Thread(target=bot.polling_thread, name="botThread")
+    bot_thread.start()
 
 
 if __name__ == "__main__":
