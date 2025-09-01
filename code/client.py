@@ -48,8 +48,8 @@ class Client(telebot.TeleBot):
         self._logger.log_user_interaction(message.from_user, message.text)
 
         markup = telebot.types.InlineKeyboardMarkup()
-        markup.row(buttons.view_plans)
-        markup.row(buttons.view_subscriptions, buttons.view_profile)
+        markup.row(buttons.plans)
+        markup.row(buttons.subscriptions, buttons.profile)
         self.send_message(
             chat_id=message.chat.id,
             message_thread_id=message.message_thread_id,
@@ -63,17 +63,17 @@ class Client(telebot.TeleBot):
         try:
             if call.data == "start":
                 markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.view_plans)
-                markup.row(buttons.view_subscriptions, buttons.view_profile)
+                markup.row(buttons.plans)
+                markup.row(buttons.subscriptions, buttons.profile)
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     text=f"Добро пожаловать в {self.bot.full_name}!",
                     reply_markup=markup,
                 )
-            elif call.data == "view_profile":
+            elif call.data == "profile":
                 invite_friend_button = buttons.invite_friend
-                invite_friend_button.copy_text = telebot.types.CopyTextButton(text=f"https://t.me/{self.bot.username}?start={call.from_user.id}")
+                invite_friend_button.copy_text.text = invite_friend_button.copy_text.text.format(self.bot.username, call.from_user.id)
                 markup = telebot.types.InlineKeyboardMarkup()
                 markup.row(buttons.add_funds)
                 markup.row(invite_friend_button, buttons.back_to_start)
@@ -83,6 +83,30 @@ class Client(telebot.TeleBot):
                     text=f"Профиль {call.from_user.full_name}",
                     reply_markup=markup,
                 )
+            elif call.data == "add_funds":
+                markup = telebot.types.InlineKeyboardMarkup()
+                markup.row(buttons.add_funds_enter)
+                markup.row(buttons.add_funds_month, buttons.add_funds_quarter)
+                markup.row(buttons.add_funds_half, buttons.add_funds_year)
+                markup.row(buttons.back_to_profile)
+                self.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text="Пополнить баланс",
+                    reply_markup=markup,
+                )
+            # TODO: запрос данных от пользователя
+            # elif call.data == "add_funds_enter":
+            #     self.add_funds_invoice(call, amount=)
+            # TODO: получение стоимостей тарифов из .json
+            elif call.data == "add_funds_month":
+                self.add_funds_invoice(call, amount=75)
+            elif call.data == "add_funds_quarter":
+                self.add_funds_invoice(call, amount=210)
+            elif call.data == "add_funds_half":
+                self.add_funds_invoice(call, amount=360)
+            elif call.data == "add_funds_year":
+                self.add_funds_invoice(call, amount=660)
             elif call.data == "config_copy_settings":
                 if call.message.document:
                     file = self.get_file(call.message.document.file_id)
@@ -99,16 +123,6 @@ class Client(telebot.TeleBot):
                         text="Настройки для подключения недоступны!",
                         show_alert=True,
                     )
-            elif call.data == "download_amnezia":
-                markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.download_amnezia_desktop, buttons.download_amnezia_android)
-                markup.row(buttons.download_amnezia_apple)
-                self.send_message(
-                    chat_id=call.message.chat.id,
-                    message_thread_id=call.message.message_thread_id,
-                    text="Скачать клиент Amnezia VPN:",
-                    reply_markup=markup,
-                )
             else:
                 self.answer_callback_query(
                     callback_query_id=call.id,
@@ -136,3 +150,6 @@ class Client(telebot.TeleBot):
             caption="Ваш файл конфигурации\nдоступен для скачивания!",
             reply_markup=markup,
         )
+
+    def add_funds_invoice(self, call: telebot.types.CallbackQuery, amount: int):
+        self._logger.log_user_interaction(call.from_user, " ".join((self.add_funds_invoice.__name__, str(amount))))

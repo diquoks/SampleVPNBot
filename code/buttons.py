@@ -1,22 +1,27 @@
 import telebot
 
-# /start
-view_plans = telebot.types.InlineKeyboardButton(text="Тарифы", callback_data="view_plans")
-view_subscriptions = telebot.types.InlineKeyboardButton(text="Подписки", callback_data="view_subscriptions")
-view_profile = telebot.types.InlineKeyboardButton(text="Профиль", callback_data="view_profile")
+# TODO: Добавить класс для хранения кнопок
 
-# view_profile
-invite_friend = telebot.types.InlineKeyboardButton(text="Поделиться")
+# /start
+plans = telebot.types.InlineKeyboardButton(text="Тарифы", callback_data="plans")
+subscriptions = telebot.types.InlineKeyboardButton(text="Подписки", callback_data="subscriptions")
+profile = telebot.types.InlineKeyboardButton(text="Профиль", callback_data="profile")
+
+# profile
+invite_friend = telebot.types.InlineKeyboardButton(text="Поделиться", copy_text=telebot.types.CopyTextButton(text="https://t.me/{0}?start={1}"))
 add_funds = telebot.types.InlineKeyboardButton(text="Пополнить баланс", callback_data="add_funds")
 
-# download_amnezia
-download_amnezia_desktop = telebot.types.InlineKeyboardButton(text="Для ПК", url="https://github.com/amnezia-vpn/amnezia-client/releases/latest")
-download_amnezia_apple = telebot.types.InlineKeyboardButton(text="Для iOS, iPadOS & MacOS", url="https://apps.apple.com/us/app/amneziavpn/id1600529900")
-download_amnezia_android = telebot.types.InlineKeyboardButton(text="Для Android", url="https://play.google.com/store/apps/details?id=org.amnezia.vpn")
+# add_funds
+add_funds_enter = telebot.types.InlineKeyboardButton(text="Ввести сумму", callback_data="add_funds_enter")
+add_funds_month = telebot.types.InlineKeyboardButton(text="{0}₽", callback_data="add_funds_month")
+add_funds_quarter = telebot.types.InlineKeyboardButton(text="{0}₽", callback_data="add_funds_quarter")
+add_funds_half = telebot.types.InlineKeyboardButton(text="{0}₽", callback_data="add_funds_half")
+add_funds_year = telebot.types.InlineKeyboardButton(text="{0}₽", callback_data="add_funds_year")
 
 # back_to_*
 back_to_start = telebot.types.InlineKeyboardButton(text="Назад", callback_data="start")
+back_to_profile = telebot.types.InlineKeyboardButton(text="Назад", callback_data="profile")
 
 # TODO: /test_config
 config_copy_settings = telebot.types.InlineKeyboardButton(text="Настройки для подключения", callback_data="config_copy_settings")
-download_amnezia = telebot.types.InlineKeyboardButton(text="Скачать AmneziaVPN", callback_data="download_amnezia")
+download_amnezia = telebot.types.InlineKeyboardButton(text="Скачать AmneziaVPN", url="https://amnezia.org/downloads")
