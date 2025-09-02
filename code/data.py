@@ -23,7 +23,8 @@ class ConfigProvider:
                         setattr(self, i, self._config.get(self._SECTION, i))
                     except:
                         self._config.set(self._SECTION, i, i)
-                        self._config.write(open("config.ini", "w"))
+                        with open("config.ini", "w") as file:
+                            self._config.write(fp=file)
 
         @property
         def values(self) -> dict:
@@ -31,13 +32,13 @@ class ConfigProvider:
 
     class SettingsConfig(IConfig):
         """
-        :var token: ``str``
         :var admin_list: ``list[int]``
+        :var token: ``str``
         """
 
         _SECTION = "Settings"
-        token: str | None
         admin_list: list[int] | str | None
+        token: str | None
 
         def __init__(self, parent: ConfigProvider) -> None:
             super().__init__(parent=parent)
@@ -49,8 +50,8 @@ class ConfigProvider:
     _CONFIG_VALUES = {
         "Settings":
             {
-                "token",
                 "admin_list",
+                "token",
             },
     }
 

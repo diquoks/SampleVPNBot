@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging, telebot, io
-import buttons, data
+import data, misc
 
 
 class Client(telebot.TeleBot):
@@ -15,6 +15,7 @@ class Client(telebot.TeleBot):
 
     def __init__(self) -> None:
         self._config = data.ConfigProvider()
+        self._buttons = misc.ButtonsContainer()
         self._logger = data.LoggerService(name=__name__, level=logging.INFO)
         self._exception_handler = self.ExceptionHandler(self)
         super().__init__(
@@ -48,8 +49,8 @@ class Client(telebot.TeleBot):
         self._logger.log_user_interaction(message.from_user, message.text)
 
         markup = telebot.types.InlineKeyboardMarkup()
-        markup.row(buttons.plans)
-        markup.row(buttons.subscriptions, buttons.profile)
+        markup.row(self._buttons.plans)
+        markup.row(self._buttons.subscriptions, self._buttons.profile)
         self.send_message(
             chat_id=message.chat.id,
             message_thread_id=message.message_thread_id,
@@ -64,8 +65,8 @@ class Client(telebot.TeleBot):
         try:
             if call.data == "start":
                 markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.plans)
-                markup.row(buttons.subscriptions, buttons.profile)
+                markup.row(self._buttons.plans)
+                markup.row(self._buttons.subscriptions, self._buttons.profile)
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -73,11 +74,11 @@ class Client(telebot.TeleBot):
                     reply_markup=markup,
                 )
             elif call.data == "profile":
-                invite_friend_button = buttons.invite_friend
+                invite_friend_button = self._buttons.invite_friend
                 invite_friend_button.copy_text.text = invite_friend_button.copy_text.text.format(self.bot.username, call.from_user.id)
                 markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.add_funds)
-                markup.row(invite_friend_button, buttons.back_to_start)
+                markup.row(self._buttons.add_funds)
+                markup.row(invite_friend_button, self._buttons.back_to_start)
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -86,10 +87,10 @@ class Client(telebot.TeleBot):
                 )
             elif call.data == "add_funds":
                 markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.add_funds_enter)
-                markup.row(buttons.add_funds_month, buttons.add_funds_quarter)
-                markup.row(buttons.add_funds_half, buttons.add_funds_year)
-                markup.row(buttons.back_to_profile)
+                markup.row(self._buttons.add_funds_enter)
+                markup.row(self._buttons.add_funds_month, self._buttons.add_funds_quarter)
+                markup.row(self._buttons.add_funds_half, self._buttons.add_funds_year)
+                markup.row(self._buttons.back_to_profile)
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -98,7 +99,7 @@ class Client(telebot.TeleBot):
                 )
             elif call.data == "add_funds_enter":
                 markup = telebot.types.InlineKeyboardMarkup()
-                markup.row(buttons.back_to_add_funds)
+                markup.row(self._buttons.back_to_add_funds)
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
@@ -168,8 +169,8 @@ class Client(telebot.TeleBot):
         file_obj = io.BytesIO(bytes(config_key, encoding="utf8"))
         file_obj.name = f"{self.clean_username}_config.vpn"
         markup = telebot.types.InlineKeyboardMarkup()
-        markup.row(buttons.config_copy_settings)
-        markup.row(buttons.download_amnezia)
+        markup.row(self._buttons.config_copy_settings)
+        markup.row(self._buttons.download_amnezia)
         self.send_document(
             chat_id=message.chat.id,
             message_thread_id=message.message_thread_id,
@@ -189,7 +190,7 @@ class Client(telebot.TeleBot):
             )
         except:
             markup = telebot.types.InlineKeyboardMarkup()
-            markup.row(buttons.back_to_add_funds)
+            markup.row(self._buttons.back_to_add_funds)
             self.reply_to(
                 message,
                 text="Сумма пополнения должна быть числом!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
