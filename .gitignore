@@ -1,3 +1,5 @@
 /.idea/
 /.venv/
 *logs/
+#TODO: раскоммитить перед релизом
+#*config.ini

@@ -60,6 +60,7 @@ class Client(telebot.TeleBot):
     def callback(self, call: telebot.types.CallbackQuery) -> None:
         self._logger.log_user_interaction(call.from_user, call.data)
 
+        self.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)  # в будущем можно очищать хендлеры при определённых `call.data`
         try:
             if call.data == "start":
                 markup = telebot.types.InlineKeyboardMarkup()
@@ -95,18 +96,44 @@ class Client(telebot.TeleBot):
                     text="Пополнить баланс",
                     reply_markup=markup,
                 )
-            # TODO: запрос данных от пользователя
-            # elif call.data == "add_funds_enter":
-            #     self.add_funds_invoice(call, amount=)
+            elif call.data == "add_funds_enter":
+                markup = telebot.types.InlineKeyboardMarkup()
+                markup.row(buttons.back_to_add_funds)
+                self.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    text="Введите сумму, на которую\nхотите пополнить баланс:",
+                    reply_markup=markup,
+                )
+                self.register_next_step_handler_by_chat_id(
+                    chat_id=call.message.chat.id,
+                    callback=self.add_funds_enter_handler,
+                )
             # TODO: получение стоимостей тарифов из .json
             elif call.data == "add_funds_month":
-                self.add_funds_invoice(call, amount=75)
+                self.add_funds_invoice(
+                    user=call.from_user,
+                    chat=call.message.chat,
+                    amount=75,
+                )
             elif call.data == "add_funds_quarter":
-                self.add_funds_invoice(call, amount=210)
+                self.add_funds_invoice(
+                    user=call.from_user,
+                    chat=call.message.chat,
+                    amount=210,
+                )
             elif call.data == "add_funds_half":
-                self.add_funds_invoice(call, amount=360)
+                self.add_funds_invoice(
+                    user=call.from_user,
+                    chat=call.message.chat,
+                    amount=360,
+                )
             elif call.data == "add_funds_year":
-                self.add_funds_invoice(call, amount=660)
+                self.add_funds_invoice(
+                    user=call.from_user,
+                    chat=call.message.chat,
+                    amount=660,
+                )
             elif call.data == "config_copy_settings":
                 if call.message.document:
                     file = self.get_file(call.message.document.file_id)
@@ -151,5 +178,28 @@ class Client(telebot.TeleBot):
             reply_markup=markup,
         )
 
-    def add_funds_invoice(self, call: telebot.types.CallbackQuery, amount: int):
-        self._logger.log_user_interaction(call.from_user, " ".join((self.add_funds_invoice.__name__, str(amount))))
+    def add_funds_enter_handler(self, message: telebot.types.Message) -> None:
+        self._logger.log_user_interaction(message.from_user, " ".join((self.add_funds_invoice.__name__, message.text)))
+        try:
+            # TODO: добавить область доступных значений для пополнения
+            self.add_funds_invoice(
+                user=message.from_user,
+                chat=message.chat,
+                amount=int(message.text),
+            )
+        except:
+            markup = telebot.types.InlineKeyboardMarkup()
+            markup.row(buttons.back_to_add_funds)
+            self.reply_to(
+                message,
+                text="Сумма пополнения должна быть числом!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
+                reply_markup=markup,
+            )
+            self.register_next_step_handler_by_chat_id(
+                chat_id=message.chat.id,
+                callback=self.add_funds_enter_handler,
+            )
+
+    # noinspection PyUnusedLocal
+    def add_funds_invoice(self, user: telebot.types.User, chat: telebot.types.Chat, amount: int) -> None:  # TODO
+        self._logger.log_user_interaction(user, " ".join((self.add_funds_invoice.__name__, str(amount))))

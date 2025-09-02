@@ -21,6 +21,7 @@ add_funds_year = telebot.types.InlineKeyboardButton(text="{0}₽", callback_data
 # back_to_*
 back_to_start = telebot.types.InlineKeyboardButton(text="Назад", callback_data="start")
 back_to_profile = telebot.types.InlineKeyboardButton(text="Назад", callback_data="profile")
+back_to_add_funds = telebot.types.InlineKeyboardButton(text="Отмена", callback_data="add_funds")
 
 # TODO: /test_config
 config_copy_settings = telebot.types.InlineKeyboardButton(text="Настройки для подключения", callback_data="config_copy_settings")
