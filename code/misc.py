@@ -3,7 +3,6 @@ import telebot
 
 
 class ButtonsContainer:
-
     def __init__(self):
         # /start
         self.plans = telebot.types.InlineKeyboardButton(text="Тарифы", callback_data="plans")

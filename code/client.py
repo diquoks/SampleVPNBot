@@ -28,15 +28,20 @@ class Client(telebot.TeleBot):
         # TODO: тестовые функции
         self.register_message_handler(callback=self.send_config, commands=["test_config"])
 
-        self._logger.info(f"{self.bot.full_name} initialized!")
-
-    @property
-    def bot(self) -> telebot.types.User:
-        return self.get_me()
+        self._logger.info(f"{self.user.full_name} initialized!")
 
     @property
     def clean_username(self) -> str:
-        return self.bot.username[:-4]
+        return self.user.username[:-4]
+
+    @staticmethod
+    def get_message_thread_id(message: telebot.types.Message) -> int | None:
+        if message.reply_to_message and message.reply_to_message.is_topic_message:
+            return message.reply_to_message.message_thread_id
+        elif message.is_topic_message:
+            return message.message_thread_id
+        else:
+            return None
 
     def polling_thread(self) -> None:
         while True:
@@ -53,8 +58,8 @@ class Client(telebot.TeleBot):
         markup.row(self._buttons.subscriptions, self._buttons.profile)
         self.send_message(
             chat_id=message.chat.id,
-            message_thread_id=message.message_thread_id,
-            text=f"Добро пожаловать в {self.bot.full_name}!",
+            message_thread_id=self.get_message_thread_id(message),
+            text=f"Добро пожаловать в {self.user.full_name}!",
             reply_markup=markup,
         )
 
@@ -70,12 +75,12 @@ class Client(telebot.TeleBot):
                 self.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Добро пожаловать в {self.bot.full_name}!",
+                    text=f"Добро пожаловать в {self.user.full_name}!",
                     reply_markup=markup,
                 )
             elif call.data == "profile":
                 invite_friend_button = self._buttons.invite_friend
-                invite_friend_button.copy_text.text = invite_friend_button.copy_text.text.format(self.bot.username, call.from_user.id)
+                invite_friend_button.copy_text.text = invite_friend_button.copy_text.text.format(self.user.username, call.from_user.id)
                 markup = telebot.types.InlineKeyboardMarkup()
                 markup.row(self._buttons.add_funds)
                 markup.row(invite_friend_button, self._buttons.back_to_start)
@@ -141,7 +146,7 @@ class Client(telebot.TeleBot):
                     config_key = self.download_file(file_path=file.file_path).decode("utf-8")
                     self.send_message(
                         chat_id=call.message.chat.id,
-                        message_thread_id=call.message.message_thread_id,
+                        message_thread_id=self.get_message_thread_id(call.message),
                         text=f"Настройки для подключения:\n```{config_key}```",
                         parse_mode="markdown",
                     )
@@ -173,7 +178,7 @@ class Client(telebot.TeleBot):
         markup.row(self._buttons.download_amnezia)
         self.send_document(
             chat_id=message.chat.id,
-            message_thread_id=message.message_thread_id,
+            message_thread_id=self.get_message_thread_id(message),
             document=file_obj,
             caption="Ваш файл конфигурации\nдоступен для скачивания!",
             reply_markup=markup,
@@ -201,6 +206,5 @@ class Client(telebot.TeleBot):
                 callback=self.add_funds_enter_handler,
             )
 
-    # noinspection PyUnusedLocal
     def add_funds_invoice(self, user: telebot.types.User, chat: telebot.types.Chat, amount: int) -> None:  # TODO
         self._logger.log_user_interaction(user, " ".join((self.add_funds_invoice.__name__, str(amount))))
