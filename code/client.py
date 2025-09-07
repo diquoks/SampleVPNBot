@@ -1,5 +1,6 @@
 from __future__ import annotations
-import logging, telebot, io
+import logging, io
+import telebot
 import data, misc
 
 
