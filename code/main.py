@@ -1,12 +1,11 @@
-import threading
+import asyncio
 import client
 
 
-def main():
-    bot = client.Client()
-    bot_thread = threading.Thread(target=bot.polling_thread, name="botThread")
-    bot_thread.start()
+async def main():
+    bot = client.AiogramClient()
+    await bot.polling_coroutine()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

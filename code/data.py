@@ -1,6 +1,6 @@
 from __future__ import annotations
 import configparser, datetime, logging, json, sys, os
-import telebot
+import aiogram
 import utils
 
 
@@ -56,18 +56,18 @@ class ConfigProvider:
     class SettingsConfig(IConfig):
         """
         :var admin_list: ``list[int]``
-        :var token: ``str``
+        :var bot_token: ``str``
         """
 
         _SECTION = "Settings"
         admin_list: list[int] | str | None
-        token: str | None
+        bot_token: str | None
 
     _CONFIG_VALUES = {
         "Settings":
             {
                 "admin_list": list,
-                "token": str,
+                "bot_token": str,
             },
     }
     settings: SettingsConfig
@@ -89,7 +89,7 @@ class LoggerService(logging.Logger):
             file_handler.setFormatter(logging.Formatter(fmt="$levelname $asctime - $message", datefmt="%d-%m-%y %H:%M:%S", style="$"))
             self.addHandler(file_handler)
 
-    def log_user_interaction(self, user: telebot.types.User, interaction: str) -> None:
+    def log_user_interaction(self, user: aiogram.types.User, interaction: str) -> None:
         user_info = f"@{user.username} ({user.id})" if user.username else user.id
         self.info(f"{user_info} - \"{interaction}\"")
 
