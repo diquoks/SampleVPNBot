@@ -1,4 +1,4 @@
-﻿## SampleVPNBot
+﻿## VastNetVPNBot
 
 Ты думал тут что-то будет?
 
@@ -11,4 +11,5 @@
 
 #### Прочие ссылки
 
+[Бот в Telegram](https://t.me/vastnetvpnbot)\
 [Telegram-канал с новостями](https://t.me/diquoks_channel)
