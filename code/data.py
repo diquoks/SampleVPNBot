@@ -1,7 +1,27 @@
 from __future__ import annotations
 import configparser, datetime, logging, json, sys, os
 import aiogram
-import utils
+import models, utils
+
+
+class DataProvider:
+    """
+    :var plans: ``models.PlansContainer``
+    """
+
+    _PATH = utils.get_path("data/{0}.json")
+    _DATA_VALUES = {
+        "plans": models.PlansContainer,
+    }
+    plans: models.PlansContainer
+
+    def __init__(self) -> None:
+        for k, v in self._DATA_VALUES.items():
+            try:
+                with open(self._PATH.format(k), "rb") as file:
+                    setattr(self, k, v(data=json.loads(file.read())))
+            except:
+                setattr(self, k, None)
 
 
 class ConfigProvider:
@@ -74,7 +94,6 @@ class ConfigProvider:
 
     def __init__(self) -> None:
         self.settings = self.SettingsConfig(self)
-        super().__init__()
 
 
 class LoggerService(logging.Logger):

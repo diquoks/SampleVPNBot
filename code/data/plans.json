@@ -1,0 +1,21 @@
+{
+  "max_balance": 1000,
+  "plans": [
+    {
+      "months": 1,
+      "price": 75
+    },
+    {
+      "months": 3,
+      "price": 70
+    },
+    {
+      "months": 6,
+      "price": 60
+    },
+    {
+      "months": 12,
+      "price": 55
+    }
+  ]
+}
