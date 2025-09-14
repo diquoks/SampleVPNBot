@@ -28,6 +28,8 @@
 - [Бот в Telegram](https://t.me/vastnetvpnbot)
 - [Telegram-канал с новостями](https://t.me/diquoks_channel)
 
+---
+
 ## Сборка и запуск
 
 ### Необходимые компоненты
