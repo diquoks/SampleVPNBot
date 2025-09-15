@@ -27,6 +27,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self.errors.register(self.handle_error)
         self.message.register(self.start, aiogram.filters.Command("start"))
+        self.message.register(self.admin, aiogram.filters.Command("admin"))
         self._form_router.callback_query.register(self.callback)
         self._form_router.message.register(self.add_funds_enter_handler, self._form.add_funds_enter)
 
@@ -76,6 +77,16 @@ class AiogramClient(aiogram.Dispatcher):
             text=f"Добро пожаловать в {(await self.user).full_name}!",
             reply_markup=markup,
         )
+
+    async def admin(self, message: aiogram.types.Message) -> None:
+        self._logger.log_user_interaction(message.from_user, f"{message.text} (admin={message.from_user.id in self._config.settings.admin_list})")
+
+        if message.from_user.id in self._config.settings.admin_list:
+            await self._bot.send_message(
+                chat_id=message.chat.id,
+                message_thread_id=self.get_message_thread_id(message),
+                text="Вы являетесь администратором!",
+            )
 
     async def callback(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
         self._logger.log_user_interaction(call.from_user, call.data)
@@ -238,7 +249,7 @@ class AiogramClient(aiogram.Dispatcher):
                 )
                 await self._bot.send_message(
                     chat_id=message.chat.id,
-                    text=f"Сумма пополнения должна быть\nчислом от {minimum_plan.price} до {self._data.plans.max_balance - current_balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
+                    text=f"Сумма пополнения должна\nбыть числом от {minimum_plan.price} до {self._data.plans.max_balance - current_balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
                     reply_to_message_id=message.message_id,
                     reply_markup=markup,
                 )
@@ -258,7 +269,7 @@ class AiogramClient(aiogram.Dispatcher):
             )
             await self._bot.send_message(
                 chat_id=message.chat.id,
-                text="Сумма пополнения должна быть числом!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
+                text="Сумма пополнения должна\nбыть числом!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
                 reply_to_message_id=message.message_id,
                 reply_markup=markup,
             )
