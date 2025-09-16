@@ -73,6 +73,18 @@ class ConfigProvider:
             except:
                 return None
 
+    class PaymentsConfig(IConfig):
+        """
+        :var currency: ``str``
+        :var multiplier: ``int``
+        :var provider_token: ``str``
+        """
+
+        _SECTION = "Payments"
+        currency: str | None
+        multiplier: int | None
+        provider_token: str | None
+
     class SettingsConfig(IConfig):
         """
         :var admin_list: ``list[int]``
@@ -89,10 +101,18 @@ class ConfigProvider:
                 "admin_list": list,
                 "bot_token": str,
             },
+        "Payments":
+            {
+                "currency": str,
+                "multiplier": int,
+                "provider_token": str,
+            }
     }
+    payments: PaymentsConfig
     settings: SettingsConfig
 
     def __init__(self) -> None:
+        self.payments = self.PaymentsConfig(self)
         self.settings = self.SettingsConfig(self)
 
 

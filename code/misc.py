@@ -22,18 +22,14 @@ class ButtonsContainer:
 
         # add_funds
         self.add_funds_enter = aiogram.types.InlineKeyboardButton(text="Ввести сумму", callback_data="add_funds_enter")
-        for k, v in {
-            "add_funds_month": models.PlansType.MONTH,
-            "add_funds_quarter": models.PlansType.QUARTER,
-            "add_funds_half": models.PlansType.HALF,
-            "add_funds_year": models.PlansType.YEAR,
-        }.items():
-            selected_plan = self._data.plans.plans[v]
-            selected_button = aiogram.types.InlineKeyboardButton(text="{0}₽", callback_data=k)
+        for i in models.PlansType:
+            selected_plan = self._data.plans.plans[i.value]
+            selected_button = aiogram.types.InlineKeyboardButton(text="{0}₽", callback_data=f"add_funds_{i.name}")
             selected_button.text = selected_button.text.format(selected_plan.price * selected_plan.months)
-            setattr(self, k, selected_button)
+            setattr(self, f"add_funds_{i.name}", selected_button)
 
         # back_to_*
         self.back_to_start = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="start")
+        self.back_to_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
         self.back_to_profile = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="profile")
         self.back_to_add_funds = aiogram.types.InlineKeyboardButton(text="Отмена", callback_data="add_funds")
