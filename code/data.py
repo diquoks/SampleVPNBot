@@ -19,57 +19,56 @@ class IDataProvider:
 
 
 class IConfigProvider:
+    class IConfig:
+        _SECTION: str
+        _CONFIG_VALUES: dict = None
+
+        def __init__(self, parent: IConfigProvider = None) -> None:
+            if isinstance(parent, IConfigProvider):
+                self._CONFIG_VALUES = parent._CONFIG_VALUES[self._SECTION]
+                self._incorrect_content_exception = configparser.ParsingError("config.ini is filled incorrectly!")
+                self._config = configparser.ConfigParser()
+                self._config.read(utils.get_path("config.ini"))
+                if not self._config.has_section(self._SECTION):
+                    self._config.add_section(self._SECTION)
+                for k, v in self._CONFIG_VALUES.items():
+                    try:
+                        setattr(self, k, self._config.get(self._SECTION, k))
+                    except:
+                        self._config.set(self._SECTION, k, v.__name__)
+                        with open(utils.get_path("config.ini"), "w") as file:
+                            self._config.write(fp=file)
+                for k, v in self._CONFIG_VALUES.items():
+                    try:
+                        if v == int:
+                            setattr(self, k, int(getattr(self, k)))
+                        elif v == bool:
+                            if getattr(self, k) not in [str(True), str(False)]:
+                                setattr(self, k, None)
+                                raise self._incorrect_content_exception
+                            else:
+                                setattr(self, k, getattr(self, k) == str(True))
+                        elif v in [dict, list]:
+                            setattr(self, k, json.loads(getattr(self, k)))
+                    except:
+                        setattr(self, k, None)
+                        raise self._incorrect_content_exception
+                if not self.values:
+                    raise self._incorrect_content_exception
+
+        @property
+        def values(self) -> dict | None:
+            try:
+                return {i: getattr(self, i) for i in self._CONFIG_VALUES}
+            except:
+                return None
+
     _CONFIG_VALUES: dict[str, dict[str, type]]
     _CONFIG_OBJECTS: dict[str, type]
 
     def __init__(self) -> None:
         for k, v in self._CONFIG_OBJECTS.items():
             setattr(self, k, v(self))
-
-
-class IConfig:
-    _SECTION: str
-    _CONFIG_VALUES: dict = None
-
-    def __init__(self, parent: IConfigProvider = None) -> None:
-        if isinstance(parent, IConfigProvider):
-            self._CONFIG_VALUES = parent._CONFIG_VALUES[self._SECTION]
-            self._incorrect_content_exception = configparser.ParsingError("config.ini is filled incorrectly!")
-            self._config = configparser.ConfigParser()
-            self._config.read(utils.get_path("config.ini"))
-            if not self._config.has_section(self._SECTION):
-                self._config.add_section(self._SECTION)
-            for k, v in self._CONFIG_VALUES.items():
-                try:
-                    setattr(self, k, self._config.get(self._SECTION, k))
-                except:
-                    self._config.set(self._SECTION, k, v.__name__)
-                    with open(utils.get_path("config.ini"), "w") as file:
-                        self._config.write(fp=file)
-            for k, v in self._CONFIG_VALUES.items():
-                try:
-                    if v == int:
-                        setattr(self, k, int(getattr(self, k)))
-                    elif v == bool:
-                        if getattr(self, k) not in [str(True), str(False)]:
-                            setattr(self, k, None)
-                            raise self._incorrect_content_exception
-                        else:
-                            setattr(self, k, getattr(self, k) == str(True))
-                    elif v in [dict, list]:
-                        setattr(self, k, json.loads(getattr(self, k)))
-                except:
-                    setattr(self, k, None)
-                    raise self._incorrect_content_exception
-            if not self.values:
-                raise self._incorrect_content_exception
-
-    @property
-    def values(self) -> dict | None:
-        try:
-            return {i: getattr(self, i) for i in self._CONFIG_VALUES}
-        except:
-            return None
 
 
 class ILoggerService(logging.Logger):
@@ -98,20 +97,20 @@ class DataProvider(IDataProvider):
 
 
 class ConfigProvider(IConfigProvider):
-    class PaymentsConfig(IConfig):
+    class PaymentsConfig(IConfigProvider.IConfig):
         _SECTION = "Payments"
         currency: str
         multiplier: int
         provider_token: str
 
-    class SettingsConfig(IConfig):
+    class SettingsConfig(IConfigProvider.IConfig):
         _SECTION = "Settings"
         admin_list: list[int]
         bot_token: str
         file_logging: bool
         skip_updates: bool
 
-    class TestConfig(IConfig):  # TODO: удалить после интеграции базы данных (DATABASE)
+    class TestConfig(IConfigProvider.IConfig):  # TODO: удалить после интеграции базы данных (DATABASE)
         _SECTION = "Test"
         balance: int
 
