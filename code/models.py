@@ -2,27 +2,7 @@ from __future__ import annotations
 import enum
 
 
-# Enums
-class PlansType(enum.IntEnum):
-    MONTH = 0
-    QUARTER = 1
-    HALF = 2
-    YEAR = 3
-
-
-# Utils and containers
-class PlansContainer:
-    data: dict
-    max_balance: int | None
-    plans: list[Plan] | None
-
-    def __init__(self, data: dict):
-        setattr(self, "data", data)
-        setattr(self, "max_balance", data["max_balance"])
-        setattr(self, "plans", [Plan(data=i) for i in data["plans"]])
-
-
-# Models
+# Abstract classes
 class IModel:
     _ATTRIBUTES: dict | set | None = None
     _OBJECTS: dict | None = None
@@ -52,6 +32,27 @@ class IModel:
                     setattr(self, k, None)
 
 
+# Enums
+class PlansType(enum.IntEnum):
+    MONTH = 0
+    QUARTER = 1
+    HALF = 2
+    YEAR = 3
+
+
+# Utils and containers
+class PlansContainer:
+    data: dict
+    max_balance: int | None
+    plans: list[Plan] | None
+
+    def __init__(self, data: dict):
+        setattr(self, "data", data)
+        setattr(self, "max_balance", data["max_balance"])
+        setattr(self, "plans", [Plan(data=i) for i in data["plans"]])
+
+
+# Models
 class Plan(IModel):
     _ATTRIBUTES = {
         "months",

@@ -4,16 +4,10 @@ import aiogram
 import models, utils
 
 
-class DataProvider:
-    """
-    :var plans: ``models.PlansContainer``
-    """
-
-    _PATH = utils.get_path("data/{0}.json")
-    _DATA_VALUES = {
-        "plans": models.PlansContainer,
-    }
-    plans: models.PlansContainer
+# Abstract classes
+class IDataProvider:
+    _PATH: str
+    _DATA_VALUES: dict[str, type]
 
     def __init__(self) -> None:
         for k, v in self._DATA_VALUES.items():
@@ -24,99 +18,61 @@ class DataProvider:
                 setattr(self, k, None)
 
 
-class ConfigProvider:
-    """
-    :var settings: ``SettingsConfig``
-    """
-
-    class IConfig:
-        _SECTION: str = None
-        _CONFIG_VALUES: dict = None
-
-        def __init__(self, parent: ConfigProvider = None) -> None:
-            if isinstance(parent, ConfigProvider):
-                self._CONFIG_VALUES = parent._CONFIG_VALUES[self._SECTION]
-                self._incorrect_content_exception = configparser.ParsingError("config.ini is filled incorrectly!")
-                self._config = configparser.ConfigParser()
-                self._config.read(utils.get_path("config.ini"))
-                if not self._config.has_section(self._SECTION):
-                    self._config.add_section(self._SECTION)
-                for k, v in self._CONFIG_VALUES.items():
-                    try:
-                        setattr(self, k, self._config.get(self._SECTION, k))
-                    except:
-                        self._config.set(self._SECTION, k, v.__name__)
-                        with open(utils.get_path("config.ini"), "w") as file:
-                            self._config.write(fp=file)
-                for k, v in self._CONFIG_VALUES.items():
-                    try:
-                        if v == int:
-                            setattr(self, k, int(getattr(self, k)))
-                        elif v == bool:
-                            if getattr(self, k) not in [str(True), str(False)]:
-                                setattr(self, k, None)
-                                raise self._incorrect_content_exception
-                            else:
-                                setattr(self, k, getattr(self, k) == str(True))
-                        elif v in [dict, list]:
-                            setattr(self, k, json.loads(getattr(self, k)))
-                    except:
-                        setattr(self, k, None)
-                        raise self._incorrect_content_exception
-                if not self.values:
-                    raise self._incorrect_content_exception
-
-        @property
-        def values(self) -> dict | None:
-            try:
-                return {i: getattr(self, i) for i in self._CONFIG_VALUES}
-            except:
-                return None
-
-    class PaymentsConfig(IConfig):
-        """
-        :var currency: ``str``
-        :var multiplier: ``int``
-        :var provider_token: ``str``
-        """
-
-        _SECTION = "Payments"
-        currency: str | None
-        multiplier: int | None
-        provider_token: str | None
-
-    class SettingsConfig(IConfig):
-        """
-        :var admin_list: ``list[int]``
-        :var bot_token: ``str``
-        """
-
-        _SECTION = "Settings"
-        admin_list: list[int] | str | None
-        bot_token: str | None
-
-    _CONFIG_VALUES = {
-        "Settings":
-            {
-                "admin_list": list,
-                "bot_token": str,
-            },
-        "Payments":
-            {
-                "currency": str,
-                "multiplier": int,
-                "provider_token": str,
-            }
-    }
-    payments: PaymentsConfig
-    settings: SettingsConfig
+class IConfigProvider:
+    _CONFIG_VALUES: dict[str, dict[str, type]]
+    _CONFIG_OBJECTS: dict[str, type]
 
     def __init__(self) -> None:
-        self.payments = self.PaymentsConfig(self)
-        self.settings = self.SettingsConfig(self)
+        for k, v in self._CONFIG_OBJECTS.items():
+            setattr(self, k, v(self))
 
 
-class LoggerService(logging.Logger):
+class IConfig:
+    _SECTION: str
+    _CONFIG_VALUES: dict = None
+
+    def __init__(self, parent: IConfigProvider = None) -> None:
+        if isinstance(parent, IConfigProvider):
+            self._CONFIG_VALUES = parent._CONFIG_VALUES[self._SECTION]
+            self._incorrect_content_exception = configparser.ParsingError("config.ini is filled incorrectly!")
+            self._config = configparser.ConfigParser()
+            self._config.read(utils.get_path("config.ini"))
+            if not self._config.has_section(self._SECTION):
+                self._config.add_section(self._SECTION)
+            for k, v in self._CONFIG_VALUES.items():
+                try:
+                    setattr(self, k, self._config.get(self._SECTION, k))
+                except:
+                    self._config.set(self._SECTION, k, v.__name__)
+                    with open(utils.get_path("config.ini"), "w") as file:
+                        self._config.write(fp=file)
+            for k, v in self._CONFIG_VALUES.items():
+                try:
+                    if v == int:
+                        setattr(self, k, int(getattr(self, k)))
+                    elif v == bool:
+                        if getattr(self, k) not in [str(True), str(False)]:
+                            setattr(self, k, None)
+                            raise self._incorrect_content_exception
+                        else:
+                            setattr(self, k, getattr(self, k) == str(True))
+                    elif v in [dict, list]:
+                        setattr(self, k, json.loads(getattr(self, k)))
+                except:
+                    setattr(self, k, None)
+                    raise self._incorrect_content_exception
+            if not self.values:
+                raise self._incorrect_content_exception
+
+    @property
+    def values(self) -> dict | None:
+        try:
+            return {i: getattr(self, i) for i in self._CONFIG_VALUES}
+        except:
+            return None
+
+
+class ILoggerService(logging.Logger):
     def __init__(self, name: str, file_handling: bool = True, filename: str = datetime.datetime.now().strftime("%d-%m-%y-%H-%M-%S"), level: int = logging.NOTSET, folder_name: str = "logs") -> None:
         super().__init__(name, level)
         stream_handler = logging.StreamHandler(sys.stdout)
@@ -128,9 +84,67 @@ class LoggerService(logging.Logger):
             file_handler.setFormatter(logging.Formatter(fmt="$levelname $asctime - $message", datefmt="%d-%m-%y %H:%M:%S", style="$"))
             self.addHandler(file_handler)
 
+    def log_exception(self, e: Exception) -> None:
+        self.error(msg=e, exc_info=True)
+
+
+# Named classes
+class DataProvider(IDataProvider):
+    _PATH = utils.get_path("data/{0}.json")
+    _DATA_VALUES = {
+        "plans": models.PlansContainer,
+    }
+    plans: models.PlansContainer
+
+
+class ConfigProvider(IConfigProvider):
+    class PaymentsConfig(IConfig):
+        _SECTION = "Payments"
+        currency: str
+        multiplier: int
+        provider_token: str
+
+    class SettingsConfig(IConfig):
+        _SECTION = "Settings"
+        admin_list: list[int]
+        bot_token: str
+        file_logging: bool
+        skip_updates: bool
+
+    class TestConfig(IConfig):  # TODO: удалить после интеграции базы данных (DATABASE)
+        _SECTION = "Test"
+        balance: int
+
+    _CONFIG_VALUES = {
+        "Settings":
+            {
+                "admin_list": list,
+                "bot_token": str,
+                "file_logging": bool,
+                "skip_updates": bool,
+            },
+        "Payments":
+            {
+                "currency": str,
+                "multiplier": int,
+                "provider_token": str,
+            },
+        "Test":
+            {
+                "balance": int,
+            },
+    }
+    _CONFIG_OBJECTS = {
+        "payments": PaymentsConfig,
+        "settings": SettingsConfig,
+        "test": TestConfig,
+    }
+    payments: PaymentsConfig
+    settings: SettingsConfig
+    test: TestConfig
+
+
+class LoggerService(ILoggerService):
     def log_user_interaction(self, user: aiogram.types.User, interaction: str) -> None:
         user_info = f"@{user.username} ({user.id})" if user.username else user.id
         self.info(f"{user_info} - \"{interaction}\"")
-
-    def log_exception(self, e: Exception) -> None:
-        self.error(msg=e, exc_info=True)
