@@ -1,7 +1,2 @@
-/.git/
-/.idea/
-/.venv/
-/.gitignore
-/Dockerfile
-*__pycache__/
-*logs/
+code/__pycache__/
+code/logs/

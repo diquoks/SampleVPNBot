@@ -1,11 +1,9 @@
 FROM python
 
-LABEL authors="diquoks"
-
 WORKDIR /usr/src/app
-COPY requirements.txt ./
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY code .
 
-CMD ["/bin/bash", "-c", "cd code ; python main.py"]
+CMD ["/bin/bash", "-c", "python main.py"]
