@@ -64,9 +64,6 @@ class AiogramClient(aiogram.Dispatcher):
     def _get_amount_with_currency(self, amount: int) -> str:
         return " ".join((str(amount), self._config.payments.currency))
 
-    async def handle_error(self, event: aiogram.types.ErrorEvent) -> None:
-        self._logger.log_exception(event.exception)
-
     async def polling_coroutine(self) -> None:
         try:
             await self._bot.delete_webhook(drop_pending_updates=self._config.settings.skip_updates)
@@ -75,6 +72,9 @@ class AiogramClient(aiogram.Dispatcher):
             self._logger.log_exception(e)
 
     # Handlers
+    async def handle_error(self, event: aiogram.types.ErrorEvent) -> None:
+        self._logger.log_exception(event.exception)
+
     async def start(self, message: aiogram.types.Message) -> None:
         self._logger.log_user_interaction(message.from_user, message.text)
 
@@ -241,7 +241,7 @@ class AiogramClient(aiogram.Dispatcher):
             prices=[aiogram.types.LabeledPrice(label=f"Пополнение на сумму {self._get_amount_with_currency(amount)}", amount=amount * self._config.payments.multiplier)],
             currency=self._config.payments.currency,
             provider_token=self._config.payments.provider_token,
-            payload=" ".join((user.id, self._get_amount_with_currency(amount))),
+            payload=" ".join((str(user.id), self._get_amount_with_currency(amount))),
             title="Пополнение баланса",
             description=f"Пополнение на сумму {self._get_amount_with_currency(amount)}",
         )

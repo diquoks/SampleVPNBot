@@ -46,10 +46,22 @@
 git clone https://github.com/diquoks/VastNetVPNBot.git
 ```
 
+##### Перейдите в корневую директорию
+
+```bash
+cd VastNetVPNBot
+```
+
+##### Установите зависимости
+
+```bash
+pip install -r requirements.txt
+```
+
 ##### Перейдите в директорию `code`
 
 ```bash
-cd VastNetVPNBot/code
+cd code
 ```
 
 ##### Сгенерируйте файл `config.ini`
