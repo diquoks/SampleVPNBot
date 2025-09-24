@@ -14,18 +14,13 @@ class DataProvider(pyquoks.data.IDataProvider):
 
 
 class ConfigProvider(pyquoks.data.IConfigProvider):
-    class PaymentsConfig(pyquoks.data.IConfigProvider.IConfig):
-        _SECTION = "Payments"
-        currency: str
-        multiplier: int
-        provider_token: str
-
     class SettingsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Settings"
         admin_list: list[int]
         bot_token: str
         file_logging: bool
         skip_updates: bool
+        provider_token: str
 
     class TestConfig(pyquoks.data.IConfigProvider.IConfig):  # TODO: удалить после интеграции базы данных (DATABASE)
         _SECTION = "Test"
@@ -38,11 +33,6 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
                 "bot_token": str,
                 "file_logging": bool,
                 "skip_updates": bool,
-            },
-        "Payments":
-            {
-                "currency": str,
-                "multiplier": int,
                 "provider_token": str,
             },
         "Test":
@@ -51,11 +41,9 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
             },
     }
     _CONFIG_OBJECTS = {
-        "payments": PaymentsConfig,
         "settings": SettingsConfig,
         "test": TestConfig,
     }
-    payments: PaymentsConfig
     settings: SettingsConfig
     test: TestConfig
 

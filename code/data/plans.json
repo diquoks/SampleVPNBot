@@ -1,19 +1,26 @@
 {
+  "currency": "RUB",
+  "currency_sign": "₽",
   "max_balance": 1000,
+  "multiplier": 100,
   "plans": [
     {
+      "name": "Ежемесячный",
       "months": 1,
       "price": 75
     },
     {
+      "name": "Квартальный",
       "months": 3,
       "price": 70
     },
     {
+      "name": "Полугодовой",
       "months": 6,
       "price": 60
     },
     {
+      "name": "Годовой",
       "months": 12,
       "price": 55
     }

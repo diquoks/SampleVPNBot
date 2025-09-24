@@ -15,18 +15,26 @@ class PlansType(enum.IntEnum):
 class Plan(pyquoks.models.IModel):
     _ATTRIBUTES = {
         "months",
+        "name",
         "price",
     }
     months: int | None
+    name: str | None
     price: int | None
 
 
 class PlansContainer(pyquoks.models.IContainer):
     _ATTRIBUTES = {
         "max_balance",
+        "multiplier",
+        "currency",
+        "currency_sign",
     }
     _OBJECTS = {
         "plans": Plan,
     }
     max_balance: int
+    multiplier: int
+    currency: str
+    currency_sign: str
     plans: list[Plan]
