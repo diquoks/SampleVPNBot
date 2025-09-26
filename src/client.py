@@ -5,6 +5,10 @@ import models, data, misc
 
 
 class AiogramClient(aiogram.Dispatcher):
+    _COMMANDS = [
+        aiogram.types.BotCommand(command="start", description="Запустить бота"),
+    ]
+
     class Form(aiogram.fsm.state.StatesGroup):
         add_funds_enter = aiogram.fsm.state.State()
 
@@ -29,12 +33,13 @@ class AiogramClient(aiogram.Dispatcher):
         super().__init__(name="VastNetVPNDispatcher")
         self.include_router(self._form_router)
 
-        self.errors.register(self.handle_error)
-        self.message.register(self.start, aiogram.filters.Command("start"))
-        self.message.register(self.admin, aiogram.filters.Command("admin"))
+        self.errors.register(self.error_handler)
+        self.startup.register(self.startup_handler, )
+        self.message.register(self.start_handler, aiogram.filters.Command("start"))
+        self.message.register(self.admin_handler, aiogram.filters.Command("admin"))
         self.message.register(self.success_add_funds_handler, aiogram.F.successful_payment)
         self.pre_checkout_query.register(self.pre_add_funds_handler)
-        self._form_router.callback_query.register(self.callback)
+        self._form_router.callback_query.register(self.callback_handler)
         self._form_router.message.register(self.add_funds_enter_handler, self._form.add_funds_enter)
 
         self._minimum_plan = self._data.plans.plans[models.PlansType.MONTH]
@@ -72,12 +77,21 @@ class AiogramClient(aiogram.Dispatcher):
             self._logger.log_exception(e)
 
     # Handlers
-    async def handle_error(self, event: aiogram.types.ErrorEvent) -> None:
+    async def error_handler(self, event: aiogram.types.ErrorEvent) -> None:
         self._logger.log_exception(event.exception)
 
-    async def start(self, message: aiogram.types.Message) -> None:
-        self._logger.log_user_interaction(message.from_user, message.text)
+    async def startup_handler(self) -> None:
+        await self._bot.set_my_commands(
+            commands=self._COMMANDS,
+            scope=aiogram.types.BotCommandScopeDefault(),
+            language_code="ru",
+        )
 
+    async def start_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
+        self._logger.log_user_interaction(message.from_user, command.text)
+
+        if command.args:
+            pass  # TODO: добавление реферальной информации (DATABASE)
         markup = aiogram.types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [self._buttons.plans],
@@ -91,8 +105,8 @@ class AiogramClient(aiogram.Dispatcher):
             reply_markup=markup,
         )
 
-    async def admin(self, message: aiogram.types.Message) -> None:
-        self._logger.log_user_interaction(message.from_user, f"{message.text} (admin={message.from_user.id in self._config.settings.admin_list})")
+    async def admin_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
+        self._logger.log_user_interaction(message.from_user, f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})")
 
         if message.from_user.id in self._config.settings.admin_list:
             await self._bot.send_message(
@@ -101,7 +115,7 @@ class AiogramClient(aiogram.Dispatcher):
                 text="Вы являетесь администратором!",
             )
 
-    async def callback(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
+    async def callback_handler(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
         self._logger.log_user_interaction(call.from_user, call.data)
 
         current_state = await state.get_state()

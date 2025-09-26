@@ -58,10 +58,10 @@ cd VastNetVPNBot
 pip install -r requirements.txt
 ```
 
-##### Перейдите в директорию `code`
+##### Перейдите в директорию `src`
 
 ```bash
-cd code
+cd src
 ```
 
 ##### Сгенерируйте файл `config.ini`
@@ -70,7 +70,7 @@ cd code
 python main.py
 ```
 
-##### Заполните `VastNetVPNBot/code/config.ini` и следуйте инструкциям для [Docker](#docker)
+##### Заполните `VastNetVPNBot/src/config.ini` и следуйте инструкциям для [Docker](#docker)
 
 ### Docker
 

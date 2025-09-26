@@ -25,16 +25,16 @@ class Plan(pyquoks.models.IModel):
 
 class PlansContainer(pyquoks.models.IContainer):
     _ATTRIBUTES = {
-        "max_balance",
-        "multiplier",
         "currency",
         "currency_sign",
+        "max_balance",
+        "multiplier",
     }
     _OBJECTS = {
         "plans": Plan,
     }
-    max_balance: int
-    multiplier: int
     currency: str
     currency_sign: str
+    max_balance: int
+    multiplier: int
     plans: list[Plan]
