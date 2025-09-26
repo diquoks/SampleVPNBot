@@ -14,10 +14,12 @@ class PlansType(enum.IntEnum):
 # Models & Containers
 class Plan(pyquoks.models.IModel):
     _ATTRIBUTES = {
+        "description",
         "months",
         "name",
         "price",
     }
+    description: str | None
     months: int | None
     name: str | None
     price: int | None

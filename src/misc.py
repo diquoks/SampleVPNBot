@@ -22,7 +22,7 @@ class ButtonsContainer:
         # plans_subscribe_*
         for i in models.PlansType:
             selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(text=f"Оплатить {self._get_amount_with_currency(selected_plan.price * selected_plan.months)}", callback_data=f"plans_subscribe_{i.name}")
+            selected_button = aiogram.types.InlineKeyboardButton(text=f"Подписаться за {self._get_amount_with_currency(selected_plan.price * selected_plan.months)}", callback_data=f"plans_subscribe_{i.name}")
             setattr(self, f"plans_subscribe_{i.name}", selected_button)
 
         # TODO: subscriptions

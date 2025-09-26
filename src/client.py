@@ -66,6 +66,15 @@ class AiogramClient(aiogram.Dispatcher):
         else:
             return None
 
+    @staticmethod
+    def _get_plan_from_string(plan_string: str, replace_string: str = None) -> models.PlansType | None:
+        if replace_string:
+            plan_string = plan_string.replace(replace_string, str())
+        try:
+            return models.PlansType[plan_string]
+        except KeyError:
+            return None
+
     def _get_amount_with_currency(self, amount: int, use_sign: bool = True) -> str:
         return str(amount) + self._data.plans.currency_sign if use_sign else self._data.plans.currency
 
@@ -150,8 +159,8 @@ class AiogramClient(aiogram.Dispatcher):
                     text="Выберите тариф:",
                     reply_markup=markup,
                 )
-            elif call.data.replace("plans_", str()) in [i.name for i in models.PlansType]:
-                selected_plan_type = models.PlansType[call.data.replace("plans_", str())]
+            elif self._get_plan_from_string(call.data, "plans_") in [i for i in models.PlansType]:
+                selected_plan_type = self._get_plan_from_string(call.data, "plans_")
                 selected_plan = self._data.plans.plans[selected_plan_type]
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
@@ -162,12 +171,12 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Оплата тарифа \"{selected_plan.name}\"",
+                    text=f"Тариф \"{selected_plan.name}\":\n{selected_plan.description}\n\nПериод подписки: {selected_plan.months * 30} дней",
                     reply_markup=markup,
                 )
             # TODO: проверка баланса и возможность его пополнения
-            # elif call.data.replace("plans_subscribe_", str()) in [i.name for i in models.PlansType]:
-            #     selected_plan_type = models.PlansType[call.data.replace("plans_subscribe_", str())]
+            # elif self._get_plan_from_string(call.data, "plans_subscribe_") in [i for i in models.PlansType]:
+            #     selected_plan_type = self._get_plan_from_string(call.data, "plans_subscribe_")
             #     selected_plan = self._data.plans.plans[selected_plan_type]
             elif call.data == "subscriptions":  # TODO: просмотр активных подписок (DATABASE)
                 await self.send_config(
