@@ -1,6 +1,6 @@
 /.idea/
 /.venv/
 *logs/
-#TODO: раскоммитить перед релизом
-#*data/
-#*config.ini
+*data/
+*db/
+*config.ini

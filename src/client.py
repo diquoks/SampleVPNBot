@@ -15,12 +15,13 @@ class AiogramClient(aiogram.Dispatcher):
     def __init__(self):
         self._data = data.DataProvider()
         self._config = data.ConfigProvider()
-        self._buttons = misc.ButtonsContainer()
+        self._db_users = data.UsersDatabaseManager()
         self._logger = data.LoggerService(
             name=__name__,
             file_handling=self._config.settings.file_logging,
             level=logging.INFO,
         )
+        self._buttons = misc.ButtonsContainer()
         self._user = None
         self._form = self.Form()
         self._form_router = aiogram.Router()
@@ -34,7 +35,8 @@ class AiogramClient(aiogram.Dispatcher):
         self.include_router(self._form_router)
 
         self.errors.register(self.error_handler)
-        self.startup.register(self.startup_handler, )
+        self.startup.register(self.startup_handler)
+        # TODO: `self.shutdown.register()`
         self.message.register(self.start_handler, aiogram.filters.Command("start"))
         self.message.register(self.admin_handler, aiogram.filters.Command("admin"))
         self.message.register(self.success_add_funds_handler, aiogram.F.successful_payment)
@@ -56,6 +58,14 @@ class AiogramClient(aiogram.Dispatcher):
         if not self._user:
             self._user = (await self._bot.get_me())
         return self._user
+
+    @staticmethod
+    def _get_ref_id(user_id: int, args: str | None) -> int | None:
+        try:
+            ref_id = int(args)
+            return ref_id if ref_id != user_id else None
+        except:
+            return None
 
     @staticmethod
     def _get_message_thread_id(message: aiogram.types.Message) -> int | None:
@@ -99,8 +109,11 @@ class AiogramClient(aiogram.Dispatcher):
     async def start_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
         self._logger.log_user_interaction(message.from_user, command.text)
 
-        if command.args:
-            pass  # TODO: добавление реферальной информации (DATABASE)
+        self._db_users.add_user(
+            tg_id=message.from_user.id,
+            tg_username=f"@{message.from_user.username}",
+            ref_id=self._get_ref_id(message.from_user.id, command.args)
+        )
         markup = aiogram.types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [self._buttons.plans],

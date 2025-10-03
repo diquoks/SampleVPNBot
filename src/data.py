@@ -1,7 +1,23 @@
 from __future__ import annotations
+import sqlite3, os
 import aiogram
 import pyquoks.data, pyquoks.utils
 import models
+
+
+# Abstract classes
+class IDatabaseManager(sqlite3.Connection):  # TODO: по готовности перенести в `pyquoks`
+    def __init__(self, name: str, sql: str, folder_name: str = "db") -> None:
+        os.makedirs(pyquoks.utils.get_path(folder_name, only_abspath=True), exist_ok=True)
+        super().__init__(database=f"db/{name}.db", check_same_thread=False)
+
+        self._cursor = self.cursor()
+        self.db_cursor.execute(sql)
+        self.commit()
+
+    @property
+    def db_cursor(self) -> sqlite3.Cursor:
+        return self._cursor
 
 
 # Named classes
@@ -46,6 +62,34 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
     }
     settings: SettingsConfig
     test: TestConfig
+
+
+class UsersDatabaseManager(IDatabaseManager):
+    def __init__(self) -> None:
+        super().__init__(
+            name="users",
+            sql="""
+            CREATE TABLE IF NOT EXISTS users (
+            tg_id INTEGER PRIMARY KEY NOT NULL,
+            tg_username TEXT,
+            ref_id INTEGER
+            )
+            """
+        )
+
+    def add_user(self, tg_id: int, tg_username: str = None, ref_id: int = None) -> None:
+        self.db_cursor.execute(
+            """
+            INSERT OR IGNORE INTO users (
+            tg_id,
+            tg_username,
+            ref_id
+            )
+            VALUES (?, ?, ?)
+            """,
+            (tg_id, tg_username, ref_id),
+        )
+        self.commit()
 
 
 class LoggerService(pyquoks.data.LoggerService):
