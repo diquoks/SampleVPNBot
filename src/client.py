@@ -171,13 +171,27 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Тариф \"{selected_plan.name}\":\n{selected_plan.description}\n\nПериод подписки: {selected_plan.months * 30} дней",
+                    text=f"Тариф «{selected_plan.name}»:\n{selected_plan.description}\n\nПериод подписки: {selected_plan.months * 30} дней",
                     reply_markup=markup,
                 )
-            # TODO: проверка баланса и возможность его пополнения
-            # elif self._get_plan_from_string(call.data, "plans_subscribe_") in [i for i in models.PlansType]:
-            #     selected_plan_type = self._get_plan_from_string(call.data, "plans_subscribe_")
-            #     selected_plan = self._data.plans.plans[selected_plan_type]
+            elif self._get_plan_from_string(call.data, "plans_subscribe_") in [i for i in models.PlansType]:
+                selected_plan_type = self._get_plan_from_string(call.data, "plans_subscribe_")
+                selected_plan = self._data.plans.plans[selected_plan_type]
+
+                if selected_plan.price * selected_plan.months <= self._config.test.balance:  # TODO: получение баланса пользователя (DATABASE)
+                    pass  # TODO: подписка на тариф (DATABASE)
+                else:
+                    markup = aiogram.types.InlineKeyboardMarkup(
+                        inline_keyboard=[
+                            [self._buttons.view_add_funds],
+                        ],
+                    )
+                    await self._bot.edit_message_text(
+                        chat_id=call.message.chat.id,
+                        message_id=call.message.message_id,
+                        text=f"Пополните баланс для\nподписки на «{selected_plan.name}»!",
+                        reply_markup=markup,
+                    )
             elif call.data == "subscriptions":  # TODO: просмотр активных подписок (DATABASE)
                 await self.send_config(
                     call=call,
