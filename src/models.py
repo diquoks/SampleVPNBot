@@ -40,3 +40,17 @@ class PlansContainer(pyquoks.models.IContainer):
     max_balance: int
     multiplier: int
     plans: list[Plan]
+
+
+# Values
+class UserValues(pyquoks.models.IValues):
+    _ATTRIBUTES = {
+        "tg_id",
+        "tg_username",
+        "balance",
+        "ref_id",
+    }
+    tg_id: int | None
+    tg_username: str | None
+    balance: int | None
+    ref_id: int | None

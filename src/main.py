@@ -2,7 +2,7 @@ import asyncio
 import client
 
 
-async def main():
+async def main() -> None:
     bot = client.AiogramClient()
     await bot.polling_coroutine()
 

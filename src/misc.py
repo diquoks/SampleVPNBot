@@ -4,7 +4,7 @@ import models, data
 
 
 class ButtonsContainer:
-    def __init__(self):
+    def __init__(self) -> None:
         self._data = data.DataProvider()
         self._config = data.ConfigProvider()
 

@@ -1,3 +1,5 @@
+# TODO: (REFACTOR)
+
 from __future__ import annotations
 import datetime, logging
 import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.fsm.context, aiogram.fsm.state
@@ -12,7 +14,7 @@ class AiogramClient(aiogram.Dispatcher):
     class Form(aiogram.fsm.state.StatesGroup):
         add_funds_enter = aiogram.fsm.state.State()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._data = data.DataProvider()
         self._config = data.ConfigProvider()
         self._db_users = data.UsersDatabaseManager()
@@ -36,7 +38,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self.errors.register(self.error_handler)
         self.startup.register(self.startup_handler)
-        # TODO: `self.shutdown.register()`
+        self.shutdown.register(self.shutdown_handler)
         self.message.register(self.start_handler, aiogram.filters.Command("start"))
         self.message.register(self.admin_handler, aiogram.filters.Command("admin"))
         self.message.register(self.success_add_funds_handler, aiogram.F.successful_payment)
@@ -106,14 +108,20 @@ class AiogramClient(aiogram.Dispatcher):
             language_code="ru",
         )
 
+    async def shutdown_handler(self) -> None:
+        self._db_users.close()
+        self._logger.info(f"{self.name} terminated")
+
     async def start_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
         self._logger.log_user_interaction(message.from_user, command.text)
 
         self._db_users.add_user(
             tg_id=message.from_user.id,
             tg_username=f"@{message.from_user.username}",
+            balance=0,
             ref_id=self._get_ref_id(message.from_user.id, command.args)
         )
+
         markup = aiogram.types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [self._buttons.plans],
@@ -140,9 +148,20 @@ class AiogramClient(aiogram.Dispatcher):
     async def callback_handler(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
         self._logger.log_user_interaction(call.from_user, call.data)
 
+        self._db_users.add_user(
+            tg_id=call.from_user.id,
+            tg_username=f"@{call.from_user.username}",
+            balance=0,
+            ref_id=None,
+        )
+        current_user = self._db_users.get_user(
+            tg_id=call.from_user.id,
+        )
+
         current_state = await state.get_state()
         if current_state:
             await state.clear()
+
         try:
             if call.data == "start":
                 markup = aiogram.types.InlineKeyboardMarkup(
@@ -191,7 +210,7 @@ class AiogramClient(aiogram.Dispatcher):
                 selected_plan_type = self._get_plan_from_string(call.data, "plans_subscribe_")
                 selected_plan = self._data.plans.plans[selected_plan_type]
 
-                if selected_plan.price * selected_plan.months <= self._config.test.balance:  # TODO: получение баланса пользователя (DATABASE)
+                if selected_plan.price * selected_plan.months <= current_user.balance:
                     pass  # TODO: подписка на тариф (DATABASE)
                 else:
                     markup = aiogram.types.InlineKeyboardMarkup(
@@ -222,7 +241,7 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(self._config.test.balance)}\nПриглашено друзей: {int()}\n\nUser ID: <code>{call.from_user.id}</code>",  # TODO: получение данных пользователя (DATABASE)
+                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nПриглашено друзей: {self._db_users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
                     reply_markup=markup,
                 )
             elif call.data == "add_funds":
@@ -242,7 +261,7 @@ class AiogramClient(aiogram.Dispatcher):
                     reply_markup=markup,
                 )
             elif call.data == "add_funds_enter":
-                if self._config.test.balance + self._minimum_plan.price < self._data.plans.max_balance:
+                if current_user.balance + self._minimum_plan.price < self._data.plans.max_balance:
                     markup = aiogram.types.InlineKeyboardMarkup(
                         inline_keyboard=[
                             [self._buttons.cancel_to_add_funds],
@@ -264,6 +283,7 @@ class AiogramClient(aiogram.Dispatcher):
             elif call.data.replace("add_funds_", str()) in [i.name for i in models.PlansType]:
                 selected_plan_type = models.PlansType[call.data.replace("add_funds_", str())]
                 selected_plan = self._data.plans.plans[selected_plan_type]
+                # TODO: проверка баланса пользователя (DATABASE)
                 await self.add_funds_invoice(
                     user=call.from_user,
                     chat=call.message.chat,
@@ -331,15 +351,29 @@ class AiogramClient(aiogram.Dispatcher):
     async def pre_add_funds_handler(self, pre_checkout_query: aiogram.types.PreCheckoutQuery) -> None:
         self._logger.log_user_interaction(pre_checkout_query.from_user, self.pre_add_funds_handler.__name__)
 
+        self._db_users.add_user(
+            tg_id=pre_checkout_query.from_user.id,
+            tg_username=f"@{pre_checkout_query.from_user.username}",
+            balance=0,
+            ref_id=None,
+        )
+        current_user = self._db_users.get_user(
+            tg_id=pre_checkout_query.from_user.id,
+        )
+
         await pre_checkout_query.answer(
-            ok=self._minimum_plan.price <= self._config.test.balance + pre_checkout_query.total_amount / self._data.plans.multiplier <= self._data.plans.max_balance,
+            ok=self._minimum_plan.price <= current_user.balance + pre_checkout_query.total_amount / self._data.plans.multiplier <= self._data.plans.max_balance,
             error_message="Сумма пополнения выше максимальной!",
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
         self._logger.log_user_interaction(message.from_user, self.success_add_funds_handler.__name__)
 
-        # TODO: пополнение баланса (DATABASE)
+        self._db_users.add_balance(
+            tg_id=message.from_user.id,
+            amount=int(message.successful_payment.total_amount / self._data.plans.multiplier)
+        )
+
         markup = aiogram.types.InlineKeyboardMarkup(
             inline_keyboard=[
                 [self._buttons.view_plans],
@@ -357,9 +391,19 @@ class AiogramClient(aiogram.Dispatcher):
     async def add_funds_enter_handler(self, message: aiogram.types.Message, state: aiogram.fsm.context.FSMContext) -> None:
         self._logger.log_user_interaction(message.from_user, f"{self.add_funds_enter_handler.__name__}({message.text})")
 
+        self._db_users.add_user(
+            tg_id=message.from_user.id,
+            tg_username=f"@{message.from_user.username}",
+            balance=0,
+            ref_id=None,
+        )
+        current_user = self._db_users.get_user(
+            tg_id=message.from_user.id,
+        )
+
         try:
             amount = int(message.text)
-            if self._minimum_plan.price <= self._config.test.balance + amount <= self._data.plans.max_balance:
+            if self._minimum_plan.price <= current_user.balance + amount <= self._data.plans.max_balance:
                 await self.add_funds_invoice(
                     user=message.from_user,
                     chat=message.chat,
@@ -376,7 +420,7 @@ class AiogramClient(aiogram.Dispatcher):
             )
             await self._bot.send_message(
                 chat_id=message.chat.id,
-                text=f"Сумма пополнения должна\nбыть числом от {self._minimum_plan.price} до {self._data.plans.max_balance - self._config.test.balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
+                text=f"Сумма пополнения должна\nбыть числом от {self._minimum_plan.price} до {self._data.plans.max_balance - current_user.balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
                 reply_to_message_id=message.message_id,
                 reply_markup=markup,
             )
