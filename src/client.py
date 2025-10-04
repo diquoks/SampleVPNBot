@@ -113,7 +113,10 @@ class AiogramClient(aiogram.Dispatcher):
         self._logger.info(f"{self.name} terminated")
 
     async def start_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
-        self._logger.log_user_interaction(message.from_user, command.text)
+        self._logger.log_user_interaction(
+            user=message.from_user,
+            interaction=command.text,
+        )
 
         self._db_users.add_user(
             tg_id=message.from_user.id,
@@ -136,7 +139,10 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
     async def admin_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
-        self._logger.log_user_interaction(message.from_user, f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})")
+        self._logger.log_user_interaction(
+            user=message.from_user,
+            interaction=f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})",
+        )
 
         if message.from_user.id in self._config.settings.admin_list:
             await self._bot.send_message(
@@ -146,7 +152,10 @@ class AiogramClient(aiogram.Dispatcher):
             )
 
     async def callback_handler(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
-        self._logger.log_user_interaction(call.from_user, call.data)
+        self._logger.log_user_interaction(
+            user=call.from_user,
+            interaction=call.data,
+        )
 
         self._db_users.add_user(
             tg_id=call.from_user.id,
@@ -231,7 +240,9 @@ class AiogramClient(aiogram.Dispatcher):
                 )
             elif call.data == "profile":
                 invite_friend_button = self._buttons.invite_friend
-                invite_friend_button.copy_text = aiogram.types.CopyTextButton(text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}")
+                invite_friend_button.copy_text = aiogram.types.CopyTextButton(
+                    text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
+                )
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
                         [self._buttons.add_funds],
@@ -316,7 +327,10 @@ class AiogramClient(aiogram.Dispatcher):
             await self._bot.answer_callback_query(callback_query_id=call.id)
 
     async def send_config(self, call: aiogram.types.CallbackQuery, config_key: str) -> None:
-        self._logger.log_user_interaction(call.from_user, f"{self.send_config.__name__}(config_key={config_key})")
+        self._logger.log_user_interaction(
+            user=call.from_user,
+            interaction=f"{self.send_config.__name__}(config_key={config_key})",
+        )
 
         markup = aiogram.types.InlineKeyboardMarkup(
             inline_keyboard=[
@@ -336,11 +350,19 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
     async def add_funds_invoice(self, user: aiogram.types.User, chat: aiogram.types.Chat, amount: int) -> None:
-        self._logger.log_user_interaction(user, f"{self.add_funds_invoice.__name__}(amount={amount})")
+        self._logger.log_user_interaction(
+            user=user,
+            interaction=f"{self.add_funds_invoice.__name__}(amount={amount})",
+        )
 
         await self._bot.send_invoice(
             chat_id=chat.id,
-            prices=[aiogram.types.LabeledPrice(label=f"Счёт на сумму {self._get_amount_with_currency(amount)}", amount=amount * self._data.plans.multiplier)],
+            prices=[
+                aiogram.types.LabeledPrice(
+                    label=f"Счёт на сумму {self._get_amount_with_currency(amount)}",
+                    amount=amount * self._data.plans.multiplier,
+                ),
+            ],
             currency=self._data.plans.currency,
             provider_token=self._config.settings.provider_token,
             payload=" ".join((str(user.id), self._get_amount_with_currency(amount, use_sign=False))),
@@ -349,7 +371,10 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
     async def pre_add_funds_handler(self, pre_checkout_query: aiogram.types.PreCheckoutQuery) -> None:
-        self._logger.log_user_interaction(pre_checkout_query.from_user, self.pre_add_funds_handler.__name__)
+        self._logger.log_user_interaction(
+            user=pre_checkout_query.from_user,
+            interaction=self.pre_add_funds_handler.__name__,
+        )
 
         self._db_users.add_user(
             tg_id=pre_checkout_query.from_user.id,
@@ -367,7 +392,10 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
-        self._logger.log_user_interaction(message.from_user, self.success_add_funds_handler.__name__)
+        self._logger.log_user_interaction(
+            user=message.from_user,
+            interaction=self.success_add_funds_handler.__name__,
+        )
 
         self._db_users.add_balance(
             tg_id=message.from_user.id,
@@ -388,8 +416,15 @@ class AiogramClient(aiogram.Dispatcher):
         except aiogram.exceptions.TelegramForbiddenError as e:
             self._logger.log_exception(e)
 
-    async def add_funds_enter_handler(self, message: aiogram.types.Message, state: aiogram.fsm.context.FSMContext) -> None:
-        self._logger.log_user_interaction(message.from_user, f"{self.add_funds_enter_handler.__name__}({message.text})")
+    async def add_funds_enter_handler(
+            self,
+            message: aiogram.types.Message,
+            state: aiogram.fsm.context.FSMContext,
+    ) -> None:
+        self._logger.log_user_interaction(
+            user=message.from_user,
+            interaction="{self.add_funds_enter_handler.__name__}({message.text})",
+        )
 
         self._db_users.add_user(
             tg_id=message.from_user.id,

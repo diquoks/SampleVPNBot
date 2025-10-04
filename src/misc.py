@@ -17,17 +17,29 @@ class ButtonsContainer:
         # plans_*
         for i in models.PlansType:
             selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(text=selected_plan.name, callback_data=f"plans_{i.name}")
+            selected_button = aiogram.types.InlineKeyboardButton(
+                text=selected_plan.name,
+                callback_data=f"plans_{i.name}",
+            )
             setattr(self, f"plans_{i.name}", selected_button)
         # plans_subscribe_*
         for i in models.PlansType:
             selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(text=f"Подписаться за {self._get_amount_with_currency(selected_plan.price * selected_plan.months)}", callback_data=f"plans_subscribe_{i.name}")
+            selected_button = aiogram.types.InlineKeyboardButton(
+                text=f"Подписаться за {self._get_amount_with_currency(selected_plan.price * selected_plan.months)}",
+                callback_data=f"plans_subscribe_{i.name}",
+            )
             setattr(self, f"plans_subscribe_{i.name}", selected_button)
 
         # TODO: subscriptions
-        self.config_copy_settings = aiogram.types.InlineKeyboardButton(text="Настройки для подключения", callback_data="config_copy_settings")
-        self.download_amnezia = aiogram.types.InlineKeyboardButton(text="Скачать AmneziaVPN", url="https://amnezia.org/downloads")
+        self.config_copy_settings = aiogram.types.InlineKeyboardButton(
+            text="Настройки для подключения",
+            callback_data="config_copy_settings",
+        )
+        self.download_amnezia = aiogram.types.InlineKeyboardButton(
+            text="Скачать AmneziaVPN",
+            url="https://amnezia.org/downloads",
+        )
 
         # profile
         self.invite_friend = aiogram.types.InlineKeyboardButton(text="Поделиться")
@@ -38,7 +50,10 @@ class ButtonsContainer:
         # add_funds_*
         for i in models.PlansType:
             selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(text=f"{self._get_amount_with_currency(selected_plan.price * selected_plan.months)}", callback_data=f"add_funds_{i.name}")
+            selected_button = aiogram.types.InlineKeyboardButton(
+                text=f"{self._get_amount_with_currency(selected_plan.price * selected_plan.months)}",
+                callback_data=f"add_funds_{i.name}",
+            )
             setattr(self, f"add_funds_{i.name}", selected_button)
 
         # back_to_*
