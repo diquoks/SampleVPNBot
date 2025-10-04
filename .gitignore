@@ -1,6 +1,5 @@
-/.idea/
 /.venv/
-*data/
-*db/
-*logs/
-*config.ini
+*/data/
+*/db/
+*/logs/
+*/config.ini
