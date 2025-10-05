@@ -66,6 +66,7 @@ class ButtonsContainer:
 
         # view_*
         self.view_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
+        self.view_profile = aiogram.types.InlineKeyboardButton(text="Перейти в профиль", callback_data="profile")
         self.view_add_funds = aiogram.types.InlineKeyboardButton(text="Пополнить баланс", callback_data="add_funds")
 
     def _get_amount_with_currency(self, amount: int) -> str:

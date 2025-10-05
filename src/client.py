@@ -1,5 +1,3 @@
-# TODO: (REFACTOR)
-
 from __future__ import annotations
 import datetime, logging
 import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.fsm.context, aiogram.fsm.state
@@ -17,7 +15,7 @@ class AiogramClient(aiogram.Dispatcher):
     def __init__(self) -> None:
         self._data = data.DataProvider()
         self._config = data.ConfigProvider()
-        self._db_users = data.UsersDatabaseManager()
+        self._database = data.DatabaseManager()
         self._logger = data.LoggerService(
             name=__name__,
             file_handling=self._config.settings.file_logging,
@@ -108,8 +106,11 @@ class AiogramClient(aiogram.Dispatcher):
             language_code="ru",
         )
 
+        self._logger.info(f"{self.name} started!")
+
     async def shutdown_handler(self) -> None:
-        self._db_users.close()
+        self._database.close_all()
+
         self._logger.info(f"{self.name} terminated")
 
     async def start_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
@@ -118,7 +119,7 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=command.text,
         )
 
-        self._db_users.add_user(
+        self._database.users.add_user(
             tg_id=message.from_user.id,
             tg_username=f"@{message.from_user.username}",
             balance=0,
@@ -134,11 +135,16 @@ class AiogramClient(aiogram.Dispatcher):
         await self._bot.send_message(
             chat_id=message.chat.id,
             message_thread_id=self._get_message_thread_id(message),
+            # (TEXT_PENDING)
             text=f"Добро пожаловать в {(await self.user).full_name}!",
             reply_markup=markup,
         )
 
-    async def admin_handler(self, message: aiogram.types.Message, command: aiogram.filters.CommandObject) -> None:
+    async def admin_handler(
+            self,
+            message: aiogram.types.Message,
+            command: aiogram.filters.CommandObject,
+    ) -> None:  # TODO: /admin
         self._logger.log_user_interaction(
             user=message.from_user,
             interaction=f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})",
@@ -157,13 +163,13 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=call.data,
         )
 
-        self._db_users.add_user(
+        self._database.users.add_user(
             tg_id=call.from_user.id,
             tg_username=f"@{call.from_user.username}",
             balance=0,
             ref_id=None,
         )
-        current_user = self._db_users.get_user(
+        current_user = self._database.users.get_user(
             tg_id=call.from_user.id,
         )
 
@@ -182,11 +188,13 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
+                    # (TEXT_PENDING)
                     text=f"Добро пожаловать в {(await self.user).full_name}!",
                     reply_markup=markup,
                 )
             elif call.data == "plans":
                 plans_buttons = [getattr(self._buttons, f"plans_{i.name}") for i in models.PlansType]
+
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
                         plans_buttons[:len(plans_buttons) // 2],
@@ -197,12 +205,14 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
+                    # (TEXT_PENDING)
                     text="Выберите тариф:",
                     reply_markup=markup,
                 )
             elif self._get_plan_from_string(call.data, "plans_") in [i for i in models.PlansType]:
                 selected_plan_type = self._get_plan_from_string(call.data, "plans_")
                 selected_plan = self._data.plans.plans[selected_plan_type]
+
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
                         [getattr(self._buttons, f"plans_subscribe_{selected_plan_type.name}")],
@@ -220,7 +230,12 @@ class AiogramClient(aiogram.Dispatcher):
                 selected_plan = self._data.plans.plans[selected_plan_type]
 
                 if selected_plan.price * selected_plan.months <= current_user.balance:
-                    pass  # TODO: подписка на тариф (DATABASE)
+                    # TODO: подписка на тариф (DATABASE)
+                    await self._bot.answer_callback_query(
+                        callback_query_id=call.id,
+                        text=f"Подписка на тариф «{selected_plan.name}» временно недоступна!",
+                        show_alert=True,
+                    )
                 else:
                     markup = aiogram.types.InlineKeyboardMarkup(
                         inline_keyboard=[
@@ -233,16 +248,19 @@ class AiogramClient(aiogram.Dispatcher):
                         text=f"Пополните баланс для\nподписки на «{selected_plan.name}»!",
                         reply_markup=markup,
                     )
-            elif call.data == "subscriptions":  # TODO: просмотр активных подписок (DATABASE)
-                await self.send_config(
-                    call=call,
-                    config_key=str(None),
+            elif call.data == "subscriptions":
+                # TODO: просмотр активных подписок (DATABASE)
+                await self._bot.answer_callback_query(
+                    callback_query_id=call.id,
+                    text=f"Просмотр активных подписок временно недоступен!",
+                    show_alert=True,
                 )
             elif call.data == "profile":
                 invite_friend_button = self._buttons.invite_friend
                 invite_friend_button.copy_text = aiogram.types.CopyTextButton(
                     text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
                 )
+
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
                         [self._buttons.add_funds],
@@ -252,11 +270,13 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nПриглашено друзей: {self._db_users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
+                    # (TEXT_PENDING)
+                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nПриглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
                     reply_markup=markup,
                 )
             elif call.data == "add_funds":
                 plans_buttons = [getattr(self._buttons, f"add_funds_{i.name}") for i in models.PlansType]
+
                 markup = aiogram.types.InlineKeyboardMarkup(
                     inline_keyboard=[
                         [self._buttons.add_funds_enter],
@@ -268,11 +288,12 @@ class AiogramClient(aiogram.Dispatcher):
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text="Пополнить баланс",
+                    # (TEXT_PENDING)
+                    text="Пополнение баланса",
                     reply_markup=markup,
                 )
             elif call.data == "add_funds_enter":
-                if current_user.balance + self._minimum_plan.price < self._data.plans.max_balance:
+                if current_user.balance + self._minimum_plan.price * self._minimum_plan.months < self._data.plans.max_balance:
                     markup = aiogram.types.InlineKeyboardMarkup(
                         inline_keyboard=[
                             [self._buttons.cancel_to_add_funds],
@@ -281,29 +302,37 @@ class AiogramClient(aiogram.Dispatcher):
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
-                        text="Введите сумму, на которую\nхотите пополнить баланс:",
+                        text=f"Введите сумму, на которую\nхотите пополнить баланс\n(число от {self._minimum_plan.price * self._minimum_plan.months} до {self._data.plans.max_balance - current_user.balance}):",
                         reply_markup=markup,
                     )
                     await state.set_state(self._form.add_funds_enter)
                 else:
                     await self._bot.answer_callback_query(
                         callback_query_id=call.id,
-                        text="Сумма для пополнения не может быть указана!",
+                        text="Сейчас вы не можете выбрать сумму пополнения!",
                         show_alert=True,
                     )
-            elif call.data.replace("add_funds_", str()) in [i.name for i in models.PlansType]:
-                selected_plan_type = models.PlansType[call.data.replace("add_funds_", str())]
+            elif self._get_plan_from_string(call.data, "add_funds_") in [i for i in models.PlansType]:
+                selected_plan_type = self._get_plan_from_string(call.data, "add_funds_")
                 selected_plan = self._data.plans.plans[selected_plan_type]
-                # TODO: проверка баланса пользователя (DATABASE)
-                await self.add_funds_invoice(
-                    user=call.from_user,
-                    chat=call.message.chat,
-                    amount=selected_plan.price * selected_plan.months,
-                )
+
+                if current_user.balance + selected_plan.price * selected_plan.months < self._data.plans.max_balance:
+                    await self.add_funds_invoice(
+                        user=call.from_user,
+                        chat=call.message.chat,
+                        amount=selected_plan.price * selected_plan.months,
+                    )
+                else:
+                    await self._bot.answer_callback_query(
+                        callback_query_id=call.id,
+                        text=f"Сумма пополнения превышает максимальную ({self._get_amount_with_currency(self._data.plans.max_balance - current_user.balance)})!",
+                        show_alert=True,
+                    )
             elif call.data == "config_copy_settings":
                 if call.message.document:
                     file = await self._bot.get_file(call.message.document.file_id)
                     config_key = (await self._bot.download_file(file_path=file.file_path)).read().decode("utf-8")
+
                     await self._bot.send_message(
                         chat_id=call.message.chat.id,
                         message_thread_id=self._get_message_thread_id(call.message),
@@ -376,19 +405,19 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=self.pre_add_funds_handler.__name__,
         )
 
-        self._db_users.add_user(
+        self._database.users.add_user(
             tg_id=pre_checkout_query.from_user.id,
             tg_username=f"@{pre_checkout_query.from_user.username}",
             balance=0,
             ref_id=None,
         )
-        current_user = self._db_users.get_user(
+        current_user = self._database.users.get_user(
             tg_id=pre_checkout_query.from_user.id,
         )
 
         await pre_checkout_query.answer(
-            ok=self._minimum_plan.price <= current_user.balance + pre_checkout_query.total_amount / self._data.plans.multiplier <= self._data.plans.max_balance,
-            error_message="Сумма пополнения выше максимальной!",
+            ok=self._minimum_plan.price * self._minimum_plan.months <= current_user.balance + pre_checkout_query.total_amount / self._data.plans.multiplier <= self._data.plans.max_balance,
+            error_message=f"Сумма пополнения превышает максимальную ({self._get_amount_with_currency(self._data.plans.max_balance - current_user.balance)})!",
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
@@ -397,19 +426,21 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=self.success_add_funds_handler.__name__,
         )
 
-        self._db_users.add_balance(
+        self._database.users.add_balance(
             tg_id=message.from_user.id,
             amount=int(message.successful_payment.total_amount / self._data.plans.multiplier)
         )
 
-        markup = aiogram.types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [self._buttons.view_plans],
-            ],
-        )
         try:
+            markup = aiogram.types.InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [self._buttons.view_profile],
+                    [self._buttons.view_plans],
+                ],
+            )
             await self._bot.send_message(
                 chat_id=message.chat.id,
+                # (TEXT_PENDING)
                 text=f"Баланс пополнен на {self._get_amount_with_currency(int(message.successful_payment.total_amount / self._data.plans.multiplier))}!",
                 reply_markup=markup,
             )
@@ -423,22 +454,23 @@ class AiogramClient(aiogram.Dispatcher):
     ) -> None:
         self._logger.log_user_interaction(
             user=message.from_user,
-            interaction="{self.add_funds_enter_handler.__name__}({message.text})",
+            interaction=f"{self.add_funds_enter_handler.__name__} (amount={message.text})",
         )
 
-        self._db_users.add_user(
+        self._database.users.add_user(
             tg_id=message.from_user.id,
             tg_username=f"@{message.from_user.username}",
             balance=0,
             ref_id=None,
         )
-        current_user = self._db_users.get_user(
+        current_user = self._database.users.get_user(
             tg_id=message.from_user.id,
         )
 
         try:
             amount = int(message.text)
-            if self._minimum_plan.price <= current_user.balance + amount <= self._data.plans.max_balance:
+
+            if self._minimum_plan.price * self._minimum_plan.months <= current_user.balance + amount <= self._data.plans.max_balance and self._minimum_plan.price * self._minimum_plan.months < amount:
                 await self.add_funds_invoice(
                     user=message.from_user,
                     chat=message.chat,
@@ -455,7 +487,7 @@ class AiogramClient(aiogram.Dispatcher):
             )
             await self._bot.send_message(
                 chat_id=message.chat.id,
-                text=f"Сумма пополнения должна\nбыть числом от {self._minimum_plan.price} до {self._data.plans.max_balance - current_user.balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
+                text=f"Сумма пополнения должна\nбыть числом от {self._minimum_plan.price * self._minimum_plan.months} до {self._data.plans.max_balance - current_user.balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
                 reply_to_message_id=message.message_id,
                 reply_markup=markup,
             )
