@@ -21,11 +21,11 @@ class IDatabaseManager:  # TODO: по готовности перенести в
             )
 
             self._cursor = self.cursor()
-            self.db_cursor.execute(self._SQL)
+            self._db_cursor.execute(self._SQL)
             self.commit()
 
         @property
-        def db_cursor(self) -> sqlite3.Cursor:
+        def _db_cursor(self) -> sqlite3.Cursor:
             return self._cursor
 
     _PATH: str
@@ -54,6 +54,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         _SECTION = "Settings"
         admin_list: list[int]
         bot_token: str
+        debug: bool
         file_logging: bool
         skip_updates: bool
         provider_token: str
@@ -63,6 +64,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
             {
                 "admin_list": list,
                 "bot_token": str,
+                "debug": bool,
                 "file_logging": bool,
                 "skip_updates": bool,
                 "provider_token": str,
@@ -75,49 +77,153 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
 
 
 class DatabaseManager(IDatabaseManager):
-    class UsersDatabase(IDatabaseManager.IDatabase):
-        _NAME = "users"
-        _SQL = """
-        CREATE TABLE IF NOT EXISTS users (
-        tg_id INTEGER PRIMARY KEY NOT NULL,
-        tg_username TEXT,
-        balance INTEGER NOT NULL,
-        ref_id INTEGER
+    class SubscriptionsDatabase(IDatabaseManager.IDatabase):
+        _NAME = "subscriptions"
+        _SQL = f"""
+        CREATE TABLE IF NOT EXISTS {_NAME} (
+        subscription_id INTEGER PRIMARY KEY NOT NULL,
+        tg_id INTEGER NOT NULL,
+        plan_id INTEGER NOT NULL,
+        payment_amount INTEGER NOT NULL,
+        date_subscribed INTEGER NOT NULL,
+        date_expires INTEGER NOT NULL
         )
         """
 
-        def add_user(self, tg_id: int, tg_username: str | None, balance: int, ref_id: int | None) -> None:
-            self.db_cursor.execute(
-                """
-                INSERT OR IGNORE INTO users (
+        def add_subscription(
+                self,
+                tg_id: int,
+                plan_id: int,
+                payment_amount: int,
+                date_subscribed: int,
+                date_expires: int,
+        ) -> None:
+            self._db_cursor.execute(
+                f"""
+                INSERT INTO {self._NAME} (
+                tg_id,
+                plan_id,
+                payment_amount,
+                date_subscribed,
+                date_expires
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (tg_id, plan_id, payment_amount, date_subscribed, date_expires),
+            )
+            self.commit()
+
+        def get_subscription(self, subscription_id: int) -> models.SubscriptionValues | None:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE subscription_id == ?
+                """,
+                (subscription_id,),
+            )
+            result = self._db_cursor.fetchone()
+            if result:
+                return models.SubscriptionValues(
+                    **dict(
+                        zip(
+                            [
+                                "subscription_id",
+                                "tg_id",
+                                "plan_id",
+                                "payment_amount",
+                                "date_subscribed",
+                                "date_expires",
+                            ],
+                            result,
+                        ),
+                    ),
+                )
+            else:
+                return None
+
+        def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues] | None:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE tg_id == ?
+                """,
+                (tg_id,),
+            )
+            results = self._db_cursor.fetchall()
+            if results:
+                return [
+                    models.SubscriptionValues(
+                        **dict(
+                            zip(
+                                [
+                                    "subscription_id",
+                                    "tg_id",
+                                    "plan_id",
+                                    "payment_amount",
+                                    "date_subscribed",
+                                    "date_expires",
+                                ],
+                                i,
+                            ),
+                        ),
+                    ) for i in results
+                ]
+            else:
+                return None
+
+    class UsersDatabase(IDatabaseManager.IDatabase):
+        _NAME = "users"
+        _SQL = f"""
+        CREATE TABLE IF NOT EXISTS {_NAME} (
+        tg_id INTEGER PRIMARY KEY NOT NULL,
+        tg_username TEXT,
+        balance INTEGER NOT NULL,
+        referrer_id INTEGER
+        )
+        """
+
+        def add_user(self, tg_id: int, tg_username: str | None, balance: int, referrer_id: int | None) -> None:
+            self._db_cursor.execute(
+                f"""
+                INSERT OR IGNORE INTO {self._NAME} (
                 tg_id,
                 tg_username,
                 balance,
-                ref_id
+                referrer_id
                 )
                 VALUES (?, ?, ?, ?)
                 """,
-                (tg_id, tg_username, balance, ref_id),
+                (tg_id, tg_username, balance, referrer_id),
             )
             self.commit()
 
         def get_user(self, tg_id: int) -> models.UserValues | None:
-            self.db_cursor.execute(
-                """
-                SELECT * FROM users WHERE tg_id == ?
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
                 (tg_id,),
             )
-            result = self.db_cursor.fetchone()
+            result = self._db_cursor.fetchone()
             if result:
-                return models.UserValues(**dict(zip(("tg_id", "tg_username", "balance", "ref_id"), result)))
+                return models.UserValues(
+                    **dict(
+                        zip(
+                            [
+                                "tg_id",
+                                "tg_username",
+                                "balance",
+                                "referrer_id",
+                            ],
+                            result,
+                        ),
+                    ),
+                )
             else:
                 return None
 
         def edit_balance(self, tg_id: int, balance: int) -> None:
-            self.db_cursor.execute(
-                """
-                UPDATE users SET balance = ? WHERE tg_id == ?
+            self._db_cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET balance = ? WHERE tg_id == ?
                 """,
                 (balance, tg_id),
             )
@@ -127,19 +233,25 @@ class DatabaseManager(IDatabaseManager):
             current_user = self.get_user(tg_id)
             self.edit_balance(tg_id, current_user.balance + amount)
 
+        def reduce_balance(self, tg_id: int, amount: int) -> None:
+            current_user = self.get_user(tg_id)
+            self.edit_balance(tg_id, current_user.balance - amount)
+
         def get_ref_count(self, tg_id: int) -> int:
-            self.db_cursor.execute(
-                """
-                SELECT COUNT(*) from users WHERE ref_id == ?
+            self._db_cursor.execute(
+                f"""
+                SELECT COUNT(*) from {self._NAME} WHERE referrer_id == ?
                 """,
                 (tg_id,),
             )
-            return self.db_cursor.fetchone()[0]
+            return self._db_cursor.fetchone()[0]
 
     _PATH = pyquoks.utils.get_path("db/")
     _DATABASE_OBJECTS = {
+        "subscriptions": SubscriptionsDatabase,
         "users": UsersDatabase,
     }
+    subscriptions: SubscriptionsDatabase
     users: UsersDatabase
 
 

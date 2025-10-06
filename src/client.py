@@ -19,7 +19,7 @@ class AiogramClient(aiogram.Dispatcher):
         self._logger = data.LoggerService(
             name=__name__,
             file_handling=self._config.settings.file_logging,
-            level=logging.INFO,
+            level=logging.DEBUG if self._config.settings.debug else logging.INFO,
         )
         self._buttons = misc.ButtonsContainer()
         self._user = None
@@ -60,10 +60,10 @@ class AiogramClient(aiogram.Dispatcher):
         return self._user
 
     @staticmethod
-    def _get_ref_id(user_id: int, args: str | None) -> int | None:
+    def _get_referrer_id(user_id: int, args: str | None) -> int | None:
         try:
-            ref_id = int(args)
-            return ref_id if ref_id != user_id else None
+            referrer_id = int(args)
+            return referrer_id if referrer_id != user_id else None
         except:
             return None
 
@@ -123,7 +123,7 @@ class AiogramClient(aiogram.Dispatcher):
             tg_id=message.from_user.id,
             tg_username=f"@{message.from_user.username}",
             balance=0,
-            ref_id=self._get_ref_id(message.from_user.id, command.args)
+            referrer_id=self._get_referrer_id(message.from_user.id, command.args)
         )
 
         markup = aiogram.types.InlineKeyboardMarkup(
@@ -140,11 +140,12 @@ class AiogramClient(aiogram.Dispatcher):
             reply_markup=markup,
         )
 
+    # TODO: /admin
     async def admin_handler(
             self,
             message: aiogram.types.Message,
             command: aiogram.filters.CommandObject,
-    ) -> None:  # TODO: /admin
+    ) -> None:
         self._logger.log_user_interaction(
             user=message.from_user,
             interaction=f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})",
@@ -167,7 +168,7 @@ class AiogramClient(aiogram.Dispatcher):
             tg_id=call.from_user.id,
             tg_username=f"@{call.from_user.username}",
             balance=0,
-            ref_id=None,
+            referrer_id=None,
         )
         current_user = self._database.users.get_user(
             tg_id=call.from_user.id,
@@ -230,11 +231,24 @@ class AiogramClient(aiogram.Dispatcher):
                 selected_plan = self._data.plans.plans[selected_plan_type]
 
                 if selected_plan.price * selected_plan.months <= current_user.balance:
-                    # TODO: подписка на тариф (DATABASE)
-                    await self._bot.answer_callback_query(
-                        callback_query_id=call.id,
-                        text=f"Подписка на тариф «{selected_plan.name}» временно недоступна!",
-                        show_alert=True,
+                    self._database.users.reduce_balance(
+                        tg_id=call.from_user.id,
+                        amount=selected_plan.price * selected_plan.months,
+                    )
+                    datetime_subscribed = datetime.datetime.now()
+                    self._database.subscriptions.add_subscription(
+                        tg_id=call.from_user.id,
+                        plan_id=selected_plan_type.value,
+                        payment_amount=selected_plan.price * selected_plan.months,
+                        date_subscribed=int(datetime_subscribed.timestamp()),
+                        date_expires=int((datetime_subscribed + datetime.timedelta(
+                            days=selected_plan.months * 30,
+                        )).timestamp()),
+                    )
+                    # TODO: выдача ключа (DATABASE)
+                    await self.send_config(
+                        call=call,
+                        config_key=str(None),
                     )
                 else:
                     markup = aiogram.types.InlineKeyboardMarkup(
@@ -249,6 +263,13 @@ class AiogramClient(aiogram.Dispatcher):
                         reply_markup=markup,
                     )
             elif call.data == "subscriptions":
+                self._logger.debug(
+                    "\n".join([
+                        str(i.__dict__) for i in self._database.subscriptions.get_user_subscriptions(
+                            tg_id=call.from_user.id,
+                        )
+                    ])
+                )
                 # TODO: просмотр активных подписок (DATABASE)
                 await self._bot.answer_callback_query(
                     callback_query_id=call.id,
@@ -409,7 +430,7 @@ class AiogramClient(aiogram.Dispatcher):
             tg_id=pre_checkout_query.from_user.id,
             tg_username=f"@{pre_checkout_query.from_user.username}",
             balance=0,
-            ref_id=None,
+            referrer_id=None,
         )
         current_user = self._database.users.get_user(
             tg_id=pre_checkout_query.from_user.id,
@@ -434,8 +455,8 @@ class AiogramClient(aiogram.Dispatcher):
         try:
             markup = aiogram.types.InlineKeyboardMarkup(
                 inline_keyboard=[
-                    [self._buttons.view_profile],
                     [self._buttons.view_plans],
+                    [self._buttons.view_profile],
                 ],
             )
             await self._bot.send_message(
@@ -461,7 +482,7 @@ class AiogramClient(aiogram.Dispatcher):
             tg_id=message.from_user.id,
             tg_username=f"@{message.from_user.username}",
             balance=0,
-            ref_id=None,
+            referrer_id=None,
         )
         current_user = self._database.users.get_user(
             tg_id=message.from_user.id,

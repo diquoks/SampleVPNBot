@@ -48,9 +48,26 @@ class UserValues(pyquoks.models.IValues):
         "tg_id",
         "tg_username",
         "balance",
-        "ref_id",
+        "referrer_id",
     }
     tg_id: int | None
     tg_username: str | None
     balance: int | None
-    ref_id: int | None
+    referrer_id: int | None
+
+
+class SubscriptionValues(pyquoks.models.IValues):
+    _ATTRIBUTES = {
+        "subscription_id",
+        "tg_id",
+        "plan_id",
+        "payment_amount",
+        "date_subscribed",
+        "date_expires",
+    }
+    subscription_id: int | None
+    tg_id: int | None
+    plan_id: int | None
+    payment_amount: int | None
+    date_subscribed: int | None
+    date_expires: int | None
