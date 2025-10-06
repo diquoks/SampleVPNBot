@@ -1,5 +1,5 @@
 from __future__ import annotations
-import sqlite3, os
+import datetime, sqlite3, os
 import aiogram
 import pyquoks.data, pyquoks.utils
 import models
@@ -166,6 +166,18 @@ class DatabaseManager(IDatabaseManager):
                         ),
                     ) for i in results
                 ]
+            else:
+                return None
+
+        def get_user_active_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues] | None:
+            subscriptions = self.get_user_subscriptions(tg_id)
+            if subscriptions:
+                return list(
+                    filter(
+                        lambda i: i.date_expires > datetime.datetime.now().timestamp(),
+                        subscriptions,
+                    )
+                )
             else:
                 return None
 

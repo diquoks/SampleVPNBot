@@ -263,13 +263,10 @@ class AiogramClient(aiogram.Dispatcher):
                         reply_markup=markup,
                     )
             elif call.data == "subscriptions":
-                self._logger.debug(
-                    "\n".join([
-                        str(i.__dict__) for i in self._database.subscriptions.get_user_subscriptions(
-                            tg_id=call.from_user.id,
-                        )
-                    ])
+                current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
+                    tg_id=call.from_user.id,
                 )
+                self._logger.debug([i.__dict__ for i in current_subscriptions])
                 # TODO: просмотр активных подписок (DATABASE)
                 await self._bot.answer_callback_query(
                     callback_query_id=call.id,
