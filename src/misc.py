@@ -16,22 +16,30 @@ class ButtonsContainer:
         # plans
         # plans_*
         for i in models.PlansType:
-            selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(
-                text=selected_plan.name,
+            plan = self._data.plans.plans[i.value]
+            button = aiogram.types.InlineKeyboardButton(
+                text=plan.name,
                 callback_data=f"plans_{i.name}",
             )
-            setattr(self, f"plans_{i.name}", selected_button)
+            setattr(self, f"plans_{i.name}", button)
         # plans_subscribe_*
         for i in models.PlansType:
-            selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(
-                text=f"Подписаться за {self._get_amount_with_currency(selected_plan.price * selected_plan.months)}",
+            plan = self._data.plans.plans[i.value]
+            button = aiogram.types.InlineKeyboardButton(
+                text=f"Подписаться за {self._get_amount_with_currency(plan.price * plan.months)}",
                 callback_data=f"plans_subscribe_{i.name}",
             )
-            setattr(self, f"plans_subscribe_{i.name}", selected_button)
+            setattr(self, f"plans_subscribe_{i.name}", button)
 
-        # TODO: subscriptions
+        # subscriptions
+        self.view_subscription = aiogram.types.InlineKeyboardButton(
+            text="#{0} «{1}»",
+            callback_data="view_subscription_{0}",
+        )
+        self.view_subscription_config = aiogram.types.InlineKeyboardButton(
+            text="Файл конфигурации",
+            callback_data="view_subscription_config_{0}",
+        )
         self.config_copy_settings = aiogram.types.InlineKeyboardButton(
             text="Настройки для подключения",
             callback_data="config_copy_settings",
@@ -49,24 +57,26 @@ class ButtonsContainer:
         self.add_funds_enter = aiogram.types.InlineKeyboardButton(text="Ввести сумму", callback_data="add_funds_enter")
         # add_funds_*
         for i in models.PlansType:
-            selected_plan = self._data.plans.plans[i.value]
-            selected_button = aiogram.types.InlineKeyboardButton(
-                text=f"{self._get_amount_with_currency(selected_plan.price * selected_plan.months)}",
+            plan = self._data.plans.plans[i.value]
+            button = aiogram.types.InlineKeyboardButton(
+                text=f"{self._get_amount_with_currency(plan.price * plan.months)}",
                 callback_data=f"add_funds_{i.name}",
             )
-            setattr(self, f"add_funds_{i.name}", selected_button)
+            setattr(self, f"add_funds_{i.name}", button)
 
         # back_to_*
         self.back_to_start = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="start")
         self.back_to_plans = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="plans")
+        self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="subscriptions")
         self.back_to_profile = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="profile")
 
         # cancel_to_*
         self.cancel_to_add_funds = aiogram.types.InlineKeyboardButton(text="Отмена", callback_data="add_funds")
 
         # view_*
-        self.view_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
-        self.view_profile = aiogram.types.InlineKeyboardButton(text="Перейти в профиль", callback_data="profile")
+        self.view_start = aiogram.types.InlineKeyboardButton(text="Главное меню", callback_data="start")
+        # self.view_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
+        # self.view_profile = aiogram.types.InlineKeyboardButton(text="Перейти в профиль", callback_data="profile")
         self.view_add_funds = aiogram.types.InlineKeyboardButton(text="Пополнить баланс", callback_data="add_funds")
 
     def _get_amount_with_currency(self, amount: int) -> str:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime, logging
-import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.fsm.context, aiogram.fsm.state
+import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.utils.keyboard, \
+    aiogram.fsm.context, aiogram.fsm.state
 import models, data, misc
 
 
@@ -85,6 +86,20 @@ class AiogramClient(aiogram.Dispatcher):
         except KeyError:
             return None
 
+    def _get_subscription_from_string(
+            self,
+            subscription_string: str,
+            replace_string: str = None,
+    ) -> models.SubscriptionValues | None:
+        if replace_string:
+            subscription_string = subscription_string.replace(replace_string, str())
+        try:
+            return self._database.subscriptions.get_subscription(
+                subscription_id=int(subscription_string),
+            )
+        except ValueError:
+            return None
+
     def _get_amount_with_currency(self, amount: int, use_sign: bool = True) -> str:
         return str(amount) + self._data.plans.currency_sign if use_sign else self._data.plans.currency
 
@@ -126,18 +141,16 @@ class AiogramClient(aiogram.Dispatcher):
             referrer_id=self._get_referrer_id(message.from_user.id, command.args)
         )
 
-        markup = aiogram.types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [self._buttons.plans],
-                [self._buttons.subscriptions, self._buttons.profile],
-            ],
-        )
+        markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+        markup_builder.row(self._buttons.plans)
+        markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+
         await self._bot.send_message(
             chat_id=message.chat.id,
             message_thread_id=self._get_message_thread_id(message),
             # (TEXT_PENDING)
             text=f"Добро пожаловать в {(await self.user).full_name}!",
-            reply_markup=markup,
+            reply_markup=markup_builder.as_markup(),
         )
 
     # TODO: /admin
@@ -180,69 +193,61 @@ class AiogramClient(aiogram.Dispatcher):
 
         try:
             if call.data == "start":
-                markup = aiogram.types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [self._buttons.plans],
-                        [self._buttons.subscriptions, self._buttons.profile],
-                    ],
-                )
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(self._buttons.plans)
+                markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
                     text=f"Добро пожаловать в {(await self.user).full_name}!",
-                    reply_markup=markup,
+                    reply_markup=markup_builder.as_markup(),
                 )
             elif call.data == "plans":
                 plans_buttons = [getattr(self._buttons, f"plans_{i.name}") for i in models.PlansType]
 
-                markup = aiogram.types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        plans_buttons[:len(plans_buttons) // 2],
-                        plans_buttons[len(plans_buttons) // 2:],
-                        [self._buttons.back_to_start],
-                    ],
-                )
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(*plans_buttons[:len(plans_buttons) // 2])
+                markup_builder.row(*plans_buttons[len(plans_buttons) // 2:])
+                markup_builder.row(self._buttons.back_to_start)
+
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
                     text="Выберите тариф:",
-                    reply_markup=markup,
+                    reply_markup=markup_builder.as_markup(),
                 )
-            elif self._get_plan_from_string(call.data, "plans_") in [i for i in models.PlansType]:
-                selected_plan_type = self._get_plan_from_string(call.data, "plans_")
-                selected_plan = self._data.plans.plans[selected_plan_type]
+            elif (current_plan_type := self._get_plan_from_string(call.data, "plans_")) in models.PlansType:
+                current_plan = self._data.plans.plans[current_plan_type]
 
-                markup = aiogram.types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [getattr(self._buttons, f"plans_subscribe_{selected_plan_type.name}")],
-                        [self._buttons.back_to_plans],
-                    ],
-                )
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(getattr(self._buttons, f"plans_subscribe_{current_plan_type.name}"))
+                markup_builder.row(self._buttons.back_to_plans)
+
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Тариф «{selected_plan.name}»:\n{selected_plan.description}\n\nПериод подписки: {selected_plan.months * 30} дней",
-                    reply_markup=markup,
+                    text=f"Тариф «{current_plan.name}»:\n{current_plan.description}\n\nПериод подписки: {current_plan.months * 30} дней",
+                    reply_markup=markup_builder.as_markup(),
                 )
-            elif self._get_plan_from_string(call.data, "plans_subscribe_") in [i for i in models.PlansType]:
-                selected_plan_type = self._get_plan_from_string(call.data, "plans_subscribe_")
-                selected_plan = self._data.plans.plans[selected_plan_type]
+            elif (current_plan_type := self._get_plan_from_string(call.data, "plans_subscribe_")) in models.PlansType:
+                current_plan = self._data.plans.plans[current_plan_type]
 
-                if selected_plan.price * selected_plan.months <= current_user.balance:
+                if current_plan.price * current_plan.months <= current_user.balance:
                     self._database.users.reduce_balance(
                         tg_id=call.from_user.id,
-                        amount=selected_plan.price * selected_plan.months,
+                        amount=current_plan.price * current_plan.months,
                     )
                     datetime_subscribed = datetime.datetime.now()
                     self._database.subscriptions.add_subscription(
                         tg_id=call.from_user.id,
-                        plan_id=selected_plan_type.value,
-                        payment_amount=selected_plan.price * selected_plan.months,
+                        plan_id=current_plan_type.value,
+                        payment_amount=current_plan.price * current_plan.months,
                         date_subscribed=int(datetime_subscribed.timestamp()),
                         date_expires=int((datetime_subscribed + datetime.timedelta(
-                            days=selected_plan.months * 30,
+                            days=current_plan.months * 30,
                         )).timestamp()),
                     )
                     # TODO: выдача ключа (DATABASE)
@@ -251,27 +256,63 @@ class AiogramClient(aiogram.Dispatcher):
                         config_key=str(None),
                     )
                 else:
-                    markup = aiogram.types.InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [self._buttons.view_add_funds],
-                        ],
-                    )
+                    markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                    markup_builder.row(self._buttons.view_add_funds)
+
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
-                        text=f"Пополните баланс для\nподписки на «{selected_plan.name}»!",
-                        reply_markup=markup,
+                        text=f"Пополните баланс для\nподписки на «{current_plan.name}»!",
+                        reply_markup=markup_builder.as_markup(),
                     )
             elif call.data == "subscriptions":
                 current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
                     tg_id=call.from_user.id,
                 )
-                self._logger.debug([i.__dict__ for i in current_subscriptions])
-                # TODO: просмотр активных подписок (DATABASE)
-                await self._bot.answer_callback_query(
-                    callback_query_id=call.id,
-                    text=f"Просмотр активных подписок временно недоступен!",
-                    show_alert=True,
+
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                for i in current_subscriptions:
+                    button = self._buttons.view_subscription
+                    button.text = button.text.format(i.subscription_id, self._data.plans.plans[i.plan_id].name)
+                    button.callback_data = button.callback_data.format(i.subscription_id)
+                    markup_builder.row(button)
+                markup_builder.row(self._buttons.back_to_start)
+
+                await self._bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    # (TEXT_PENDING)
+                    text="Выберите подписку:",
+                    reply_markup=markup_builder.as_markup(),
+                )
+            elif isinstance(
+                    current_subscription := self._get_subscription_from_string(call.data, "view_subscription_"),
+                    models.SubscriptionValues,
+            ):
+                view_subscription_config_button = self._buttons.view_subscription_config
+                view_subscription_config_button.callback_data = view_subscription_config_button.callback_data.format(
+                    current_subscription.subscription_id,
+                )
+
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(view_subscription_config_button)
+                markup_builder.row(self._buttons.back_to_subscriptions)
+
+                await self._bot.edit_message_text(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                    # (TEXT_PENDING)
+                    text=f"Подписка #{current_subscription.subscription_id}\nТариф: «{self._data.plans.plans[current_subscription.plan_id].name}»\n\nДата подписки: {datetime.datetime.fromtimestamp(current_subscription.date_subscribed).strftime("%d.%m.%y %H:%M")}\nИстекает: {datetime.datetime.fromtimestamp(current_subscription.date_expires).strftime("%d.%m.%y %H:%M")}",
+                    reply_markup=markup_builder.as_markup(),
+                )
+            elif isinstance(
+                    current_subscription := self._get_subscription_from_string(call.data, "view_subscription_config_"),
+                    models.SubscriptionValues,
+            ):
+                # TODO: выдача ключа (DATABASE)
+                await self.send_config(
+                    call=call,
+                    config_key=str(None),
                 )
             elif call.data == "profile":
                 invite_friend_button = self._buttons.invite_friend
@@ -279,49 +320,43 @@ class AiogramClient(aiogram.Dispatcher):
                     text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
                 )
 
-                markup = aiogram.types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [self._buttons.add_funds],
-                        [invite_friend_button, self._buttons.back_to_start],
-                    ],
-                )
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(self._buttons.add_funds)
+                markup_builder.row(invite_friend_button, self._buttons.back_to_start)
+
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
                     text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nПриглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
-                    reply_markup=markup,
+                    reply_markup=markup_builder.as_markup(),
                 )
             elif call.data == "add_funds":
                 plans_buttons = [getattr(self._buttons, f"add_funds_{i.name}") for i in models.PlansType]
 
-                markup = aiogram.types.InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [self._buttons.add_funds_enter],
-                        plans_buttons[:len(plans_buttons) // 2],
-                        plans_buttons[len(plans_buttons) // 2:],
-                        [self._buttons.back_to_profile],
-                    ],
-                )
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(self._buttons.add_funds_enter)
+                markup_builder.row(*plans_buttons[:len(plans_buttons) // 2])
+                markup_builder.row(*plans_buttons[len(plans_buttons) // 2:])
+                markup_builder.row(self._buttons.back_to_profile)
+
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
                     text="Пополнение баланса",
-                    reply_markup=markup,
+                    reply_markup=markup_builder.as_markup(),
                 )
             elif call.data == "add_funds_enter":
                 if current_user.balance + self._minimum_plan.price * self._minimum_plan.months < self._data.plans.max_balance:
-                    markup = aiogram.types.InlineKeyboardMarkup(
-                        inline_keyboard=[
-                            [self._buttons.cancel_to_add_funds],
-                        ],
-                    )
+                    markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                    markup_builder.row(self._buttons.cancel_to_add_funds)
+
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=f"Введите сумму, на которую\nхотите пополнить баланс\n(число от {self._minimum_plan.price * self._minimum_plan.months} до {self._data.plans.max_balance - current_user.balance}):",
-                        reply_markup=markup,
+                        reply_markup=markup_builder.as_markup(),
                     )
                     await state.set_state(self._form.add_funds_enter)
                 else:
@@ -330,15 +365,14 @@ class AiogramClient(aiogram.Dispatcher):
                         text="Сейчас вы не можете выбрать сумму пополнения!",
                         show_alert=True,
                     )
-            elif self._get_plan_from_string(call.data, "add_funds_") in [i for i in models.PlansType]:
-                selected_plan_type = self._get_plan_from_string(call.data, "add_funds_")
-                selected_plan = self._data.plans.plans[selected_plan_type]
+            elif (current_plan_type := self._get_plan_from_string(call.data, "add_funds_")) in models.PlansType:
+                current_plan = self._data.plans.plans[current_plan_type]
 
-                if current_user.balance + selected_plan.price * selected_plan.months < self._data.plans.max_balance:
+                if current_user.balance + current_plan.price * current_plan.months < self._data.plans.max_balance:
                     await self.add_funds_invoice(
                         user=call.from_user,
                         chat=call.message.chat,
-                        amount=selected_plan.price * selected_plan.months,
+                        amount=current_plan.price * current_plan.months,
                     )
                 else:
                     await self._bot.answer_callback_query(
@@ -379,12 +413,10 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=f"{self.send_config.__name__}(config_key={config_key})",
         )
 
-        markup = aiogram.types.InlineKeyboardMarkup(
-            inline_keyboard=[
-                [self._buttons.config_copy_settings],
-                [self._buttons.download_amnezia],
-            ],
-        )
+        markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+        markup_builder.row(self._buttons.config_copy_settings)
+        markup_builder.row(self._buttons.download_amnezia)
+
         await self._bot.send_document(
             chat_id=call.message.chat.id,
             message_thread_id=self._get_message_thread_id(call.message),
@@ -393,7 +425,7 @@ class AiogramClient(aiogram.Dispatcher):
                 filename=f"{await self.clean_username}_config.vpn"
             ),
             caption="Ваш файл конфигурации\nдоступен для скачивания!",
-            reply_markup=markup,
+            reply_markup=markup_builder.as_markup(),
         )
 
     async def add_funds_invoice(self, user: aiogram.types.User, chat: aiogram.types.Chat, amount: int) -> None:
@@ -450,17 +482,14 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
         try:
-            markup = aiogram.types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [self._buttons.view_plans],
-                    [self._buttons.view_profile],
-                ],
-            )
+            markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+            markup_builder.row(self._buttons.view_start)
+
             await self._bot.send_message(
                 chat_id=message.chat.id,
                 # (TEXT_PENDING)
                 text=f"Баланс пополнен на {self._get_amount_with_currency(int(message.successful_payment.total_amount / self._data.plans.multiplier))}!",
-                reply_markup=markup,
+                reply_markup=markup_builder.as_markup(),
             )
         except aiogram.exceptions.TelegramForbiddenError as e:
             self._logger.log_exception(e)
@@ -498,15 +527,13 @@ class AiogramClient(aiogram.Dispatcher):
             else:
                 raise Exception()
         except:
-            markup = aiogram.types.InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [self._buttons.cancel_to_add_funds],
-                ],
-            )
+            markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+            markup_builder.row(self._buttons.cancel_to_add_funds)
+
             await self._bot.send_message(
                 chat_id=message.chat.id,
                 text=f"Сумма пополнения должна\nбыть числом от {self._minimum_plan.price * self._minimum_plan.months} до {self._data.plans.max_balance - current_user.balance}!\n\nВведите сумму, на которую\nхотите пополнить баланс:",
                 reply_to_message_id=message.message_id,
-                reply_markup=markup,
+                reply_markup=markup_builder.as_markup(),
             )
             await state.set_state(self._form.add_funds_enter)
