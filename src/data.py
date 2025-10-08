@@ -5,7 +5,8 @@ import pyquoks.data, pyquoks.utils
 import models
 
 
-# Abstract classes
+# region Abstract classes
+
 class IDatabaseManager:  # TODO: по готовности перенести в `pyquoks`
     class IDatabase(sqlite3.Connection):
         _NAME: str = None
@@ -40,7 +41,10 @@ class IDatabaseManager:  # TODO: по готовности перенести в
             getattr(self, i).close()
 
 
-# Named classes
+# endregion
+
+# region Named classes
+
 class DataProvider(pyquoks.data.IDataProvider):
     _PATH = pyquoks.utils.get_path("data/{0}.json")
     _DATA_VALUES = {
@@ -50,6 +54,14 @@ class DataProvider(pyquoks.data.IDataProvider):
 
 
 class ConfigProvider(pyquoks.data.IConfigProvider):
+    class PaymentsConfig(pyquoks.data.IConfigProvider.IConfig):
+        _SECTION = "Payments"
+        currency: str
+        max_balance: int
+        max_subscriptions: int
+        multiplier: int
+        provider_token: str
+
     class SettingsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Settings"
         admin_list: list[int]
@@ -57,9 +69,16 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         debug: bool
         file_logging: bool
         skip_updates: bool
-        provider_token: str
 
     _CONFIG_VALUES = {
+        "Payments":
+            {
+                "currency": str,
+                "max_balance": int,
+                "max_subscriptions": int,
+                "multiplier": int,
+                "provider_token": str
+            },
         "Settings":
             {
                 "admin_list": list,
@@ -67,12 +86,13 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
                 "debug": bool,
                 "file_logging": bool,
                 "skip_updates": bool,
-                "provider_token": str,
             },
     }
     _CONFIG_OBJECTS = {
+        "payments": PaymentsConfig,
         "settings": SettingsConfig,
     }
+    payments: PaymentsConfig
     settings: SettingsConfig
 
 
@@ -203,7 +223,7 @@ class DatabaseManager(IDatabaseManager):
             else:
                 return None
 
-        def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues] | None:
+        def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             self._db_cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
@@ -211,38 +231,32 @@ class DatabaseManager(IDatabaseManager):
                 (tg_id,),
             )
             results = self._db_cursor.fetchall()
-            if results:
-                return [
-                    models.SubscriptionValues(
-                        **dict(
-                            zip(
-                                [
-                                    "subscription_id",
-                                    "tg_id",
-                                    "plan_id",
-                                    "payment_amount",
-                                    "subscribed_date",
-                                    "expires_date",
-                                ],
-                                i,
-                            ),
+            return [
+                models.SubscriptionValues(
+                    **dict(
+                        zip(
+                            [
+                                "subscription_id",
+                                "tg_id",
+                                "plan_id",
+                                "payment_amount",
+                                "subscribed_date",
+                                "expires_date",
+                            ],
+                            i,
                         ),
-                    ) for i in results
-                ]
-            else:
-                return None
+                    ),
+                ) for i in results
+            ]
 
-        def get_user_active_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues] | None:
+        def get_user_active_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             subscriptions = self.get_user_subscriptions(tg_id)
-            if subscriptions:
-                return list(
-                    filter(
-                        lambda i: i.expires_date > datetime.datetime.now().timestamp(),
-                        subscriptions,
-                    )
+            return list(
+                filter(
+                    lambda i: i.expires_date > datetime.datetime.now().timestamp(),
+                    subscriptions,
                 )
-            else:
-                return None
+            )
 
     class UsersDatabase(IDatabaseManager.IDatabase):
         _NAME = "users"
@@ -336,3 +350,5 @@ class LoggerService(pyquoks.data.LoggerService):
     def log_user_interaction(self, user: aiogram.types.User, interaction: str) -> None:
         user_info = f"@{user.username} ({user.id})" if user.username else user.id
         self.info(f"{user_info} - \"{interaction}\"")
+
+# endregion

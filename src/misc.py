@@ -78,4 +78,4 @@ class ButtonsContainer:
         self.view_add_funds = aiogram.types.InlineKeyboardButton(text="Пополнить баланс", callback_data="add_funds")
 
     def _get_amount_with_currency(self, amount: int) -> str:
-        return str(amount) + self._data.plans.currency_sign
+        return " ".join([str(amount), self._config.payments.currency])

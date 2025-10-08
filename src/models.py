@@ -3,7 +3,8 @@ import enum
 import pyquoks.models
 
 
-# Enums
+# region Enums
+
 class PlansType(enum.IntEnum):
     MONTH = 0
     QUARTER = 1
@@ -11,7 +12,10 @@ class PlansType(enum.IntEnum):
     YEAR = 3
 
 
-# Models & Containers
+# endregion
+
+# region Models & Containers
+
 class Plan(pyquoks.models.IModel):
     _ATTRIBUTES = {
         "description",
@@ -26,23 +30,16 @@ class Plan(pyquoks.models.IModel):
 
 
 class PlansContainer(pyquoks.models.IContainer):
-    _ATTRIBUTES = {
-        "currency",
-        "currency_sign",
-        "max_balance",
-        "multiplier",
-    }
-    _OBJECTS = {
+    _DATA = {
         "plans": Plan,
     }
-    currency: str
-    currency_sign: str
-    max_balance: int
-    multiplier: int
     plans: list[Plan]
 
 
-# Values
+# endregion
+
+# region Values
+
 class PaymentValues(pyquoks.models.IValues):
     _ATTRIBUTES = {
         "payment_id",
@@ -88,3 +85,5 @@ class UserValues(pyquoks.models.IValues):
     tg_username: str | None
     balance: int | None
     referrer_id: int | None
+
+# endregion
