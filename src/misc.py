@@ -46,7 +46,7 @@ class ButtonsContainer:
         )
         self.download_amnezia = aiogram.types.InlineKeyboardButton(
             text="Скачать AmneziaVPN",
-            url="https://amnezia.org/downloads",
+            url="https://storage.googleapis.com/amnezia/amnezia.org",
         )
 
         # profile
@@ -69,14 +69,12 @@ class ButtonsContainer:
         self.back_to_plans = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="plans")
         self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="subscriptions")
         self.back_to_profile = aiogram.types.InlineKeyboardButton(text="Назад", callback_data="profile")
-
-        # cancel_to_*
-        self.cancel_to_add_funds = aiogram.types.InlineKeyboardButton(text="Отмена", callback_data="add_funds")
+        self.back_to_add_funds = aiogram.types.InlineKeyboardButton(text="Отмена", callback_data="add_funds")
 
         # view_*
         self.view_start = aiogram.types.InlineKeyboardButton(text="Главное меню", callback_data="start")
-        # self.view_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
-        # self.view_profile = aiogram.types.InlineKeyboardButton(text="Перейти в профиль", callback_data="profile")
+        self.view_plans = aiogram.types.InlineKeyboardButton(text="Посмотреть тарифы", callback_data="plans")
+        self.view_profile = aiogram.types.InlineKeyboardButton(text=str(), callback_data="profile")
         self.view_add_funds = aiogram.types.InlineKeyboardButton(text="Пополнить баланс", callback_data="add_funds")
 
     def _get_amount_with_currency(self, amount: int) -> str:

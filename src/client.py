@@ -222,14 +222,19 @@ class AiogramClient(aiogram.Dispatcher):
             elif (current_plan_type := self._get_plan_from_string(call.data, "plans_")) in models.PlansType:
                 current_plan = self._data.plans.plans[current_plan_type]
 
+                view_profile_button = self._buttons.view_profile.copy()
+                view_profile_button.text = self._get_amount_with_currency(
+                    amount=current_user.balance,
+                )
+
                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                 markup_builder.row(getattr(self._buttons, f"plans_subscribe_{current_plan_type.name}"))
-                markup_builder.row(self._buttons.back_to_plans)
+                markup_builder.row(view_profile_button, self._buttons.back_to_plans)
 
                 await self._bot.edit_message_text(
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
-                    text=f"Тариф «{current_plan.name}»:\n{current_plan.description}\n\nПериод подписки: {current_plan.months * 30} дней",
+                    text=f"Тариф «{current_plan.name}»\n{current_plan.description}\n\nПериод подписки: {current_plan.months * 30} дней",
                     reply_markup=markup_builder.as_markup(),
                 )
             elif (current_plan_type := self._get_plan_from_string(call.data, "plans_subscribe_")) in models.PlansType:
@@ -241,14 +246,27 @@ class AiogramClient(aiogram.Dispatcher):
                         amount=current_plan.price * current_plan.months,
                     )
                     datetime_subscribed = datetime.datetime.now()
+                    self._database.payments.add_payment(
+                        tg_id=call.from_user.id,
+                        payment_amount=-(current_plan.price * current_plan.months),
+                        payment_currency=self._data.plans.currency,
+                        provider_payment_id=None,
+                        payment_date=int(datetime_subscribed.timestamp()),
+                    )
                     self._database.subscriptions.add_subscription(
                         tg_id=call.from_user.id,
                         plan_id=current_plan_type.value,
                         payment_amount=current_plan.price * current_plan.months,
-                        date_subscribed=int(datetime_subscribed.timestamp()),
-                        date_expires=int((datetime_subscribed + datetime.timedelta(
-                            days=current_plan.months * 30,
-                        )).timestamp()),
+                        subscribed_date=int(datetime_subscribed.timestamp()),
+                        expires_date=int(
+                            (datetime_subscribed + datetime.timedelta(
+                                days=current_plan.months * 30,
+                            )).timestamp()
+                        )
+                    )
+                    await self._bot.delete_message(
+                        chat_id=call.message.chat.id,
+                        message_id=call.message.message_id,
                     )
                     # TODO: выдача ключа (DATABASE)
                     await self.send_config(
@@ -262,7 +280,7 @@ class AiogramClient(aiogram.Dispatcher):
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
-                        text=f"Пополните баланс для\nподписки на «{current_plan.name}»!",
+                        text=f"Пополните баланс на {self._get_amount_with_currency(amount=current_plan.price * current_plan.months - current_user.balance)}\nдля подписки на «{current_plan.name}»!",
                         reply_markup=markup_builder.as_markup(),
                     )
             elif call.data == "subscriptions":
@@ -302,19 +320,27 @@ class AiogramClient(aiogram.Dispatcher):
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
-                    text=f"Подписка #{current_subscription.subscription_id}\nТариф: «{self._data.plans.plans[current_subscription.plan_id].name}»\n\nДата подписки: {datetime.datetime.fromtimestamp(current_subscription.date_subscribed).strftime("%d.%m.%y %H:%M")}\nИстекает: {datetime.datetime.fromtimestamp(current_subscription.date_expires).strftime("%d.%m.%y %H:%M")}",
+                    text=f"Подписка #{current_subscription.subscription_id}\nТариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n\nДата подписки:\n{datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y %H:%M")}\nИстекает:\n{datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y %H:%M")}",
                     reply_markup=markup_builder.as_markup(),
                 )
             elif isinstance(
                     current_subscription := self._get_subscription_from_string(call.data, "view_subscription_config_"),
                     models.SubscriptionValues,
             ):
+                await self._bot.delete_message(
+                    chat_id=call.message.chat.id,
+                    message_id=call.message.message_id,
+                )
                 # TODO: выдача ключа (DATABASE)
                 await self.send_config(
                     call=call,
                     config_key=str(None),
                 )
             elif call.data == "profile":
+                current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
+                    tg_id=call.from_user.id,
+                )
+
                 invite_friend_button = self._buttons.invite_friend.copy()
                 invite_friend_button.copy_text = aiogram.types.CopyTextButton(
                     text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
@@ -328,7 +354,7 @@ class AiogramClient(aiogram.Dispatcher):
                     chat_id=call.message.chat.id,
                     message_id=call.message.message_id,
                     # (TEXT_PENDING)
-                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nПриглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
+                    text=f"Профиль {call.from_user.full_name}:\n\nБаланс: {self._get_amount_with_currency(current_user.balance)}\nАктивных подписок: {len(current_subscriptions)}\nПриглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n\nUser ID: <code>{call.from_user.id}</code>",
                     reply_markup=markup_builder.as_markup(),
                 )
             elif call.data == "add_funds":
@@ -350,7 +376,7 @@ class AiogramClient(aiogram.Dispatcher):
             elif call.data == "add_funds_enter":
                 if current_user.balance + self._minimum_plan.price * self._minimum_plan.months < self._data.plans.max_balance:
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(self._buttons.cancel_to_add_funds)
+                    markup_builder.row(self._buttons.back_to_add_funds)
 
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
@@ -369,6 +395,10 @@ class AiogramClient(aiogram.Dispatcher):
                 current_plan = self._data.plans.plans[current_plan_type]
 
                 if current_user.balance + current_plan.price * current_plan.months < self._data.plans.max_balance:
+                    await self._bot.delete_message(
+                        chat_id=call.message.chat.id,
+                        message_id=call.message.message_id,
+                    )
                     await self.add_funds_invoice(
                         user=call.from_user,
                         chat=call.message.chat,
@@ -476,6 +506,14 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=self.success_add_funds_handler.__name__,
         )
 
+        successful_payment_date = datetime.datetime.now()
+        self._database.payments.add_payment(
+            tg_id=message.from_user.id,
+            payment_amount=int(message.successful_payment.total_amount / self._data.plans.multiplier),
+            payment_currency=message.successful_payment.currency,
+            provider_payment_id=message.successful_payment.provider_payment_charge_id,
+            payment_date=int(successful_payment_date.timestamp()),
+        )
         self._database.users.add_balance(
             tg_id=message.from_user.id,
             amount=int(message.successful_payment.total_amount / self._data.plans.multiplier)
@@ -528,7 +566,7 @@ class AiogramClient(aiogram.Dispatcher):
                 raise Exception()
         except:
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-            markup_builder.row(self._buttons.cancel_to_add_funds)
+            markup_builder.row(self._buttons.back_to_add_funds)
 
             await self._bot.send_message(
                 chat_id=message.chat.id,

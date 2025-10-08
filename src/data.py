@@ -77,6 +77,69 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
 
 
 class DatabaseManager(IDatabaseManager):
+    class PaymentsDatabase(IDatabaseManager.IDatabase):
+        _NAME = "payments"
+        _SQL = f"""
+        CREATE TABLE IF NOT EXISTS {_NAME} (
+        payment_id INTEGER PRIMARY KEY NOT NULL,
+        tg_id INTEGER NOT NULL,
+        payment_amount INTEGER NOT NULL,
+        payment_currency TEXT NOT NULL,
+        provider_payment_id TEXT,
+        payment_date INTEGER NOT NULL
+        )
+        """
+
+        def add_payment(
+                self,
+                tg_id: int,
+                payment_amount: int,
+                payment_currency: str,
+                provider_payment_id: str | None,
+                payment_date: int,
+        ) -> None:
+            self._db_cursor.execute(
+                f"""
+                INSERT INTO {self._NAME} (
+                tg_id,
+                payment_amount,
+                payment_currency,
+                provider_payment_id,
+                payment_date
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (tg_id, payment_amount, payment_currency, provider_payment_id, payment_date),
+            )
+            self.commit()
+
+        def get_payment(self, payment_id: int) -> models.PaymentValues | None:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE payment_id == ?
+                """,
+                (payment_id,),
+            )
+            result = self._db_cursor.fetchone()
+            if result:
+                return models.PaymentValues(
+                    **dict(
+                        zip(
+                            [
+                                "payment_id",
+                                "tg_id",
+                                "payment_amount",
+                                "payment_currency",
+                                "provider_payment_id",
+                                "payment_date",
+                            ],
+                            result,
+                        ),
+                    ),
+                )
+            else:
+                return None
+
     class SubscriptionsDatabase(IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
         _SQL = f"""
@@ -85,8 +148,8 @@ class DatabaseManager(IDatabaseManager):
         tg_id INTEGER NOT NULL,
         plan_id INTEGER NOT NULL,
         payment_amount INTEGER NOT NULL,
-        date_subscribed INTEGER NOT NULL,
-        date_expires INTEGER NOT NULL
+        subscribed_date INTEGER NOT NULL,
+        expires_date INTEGER NOT NULL
         )
         """
 
@@ -95,8 +158,8 @@ class DatabaseManager(IDatabaseManager):
                 tg_id: int,
                 plan_id: int,
                 payment_amount: int,
-                date_subscribed: int,
-                date_expires: int,
+                subscribed_date: int,
+                expires_date: int,
         ) -> None:
             self._db_cursor.execute(
                 f"""
@@ -104,12 +167,12 @@ class DatabaseManager(IDatabaseManager):
                 tg_id,
                 plan_id,
                 payment_amount,
-                date_subscribed,
-                date_expires
+                subscribed_date,
+                expires_date
                 )
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (tg_id, plan_id, payment_amount, date_subscribed, date_expires),
+                (tg_id, plan_id, payment_amount, subscribed_date, expires_date),
             )
             self.commit()
 
@@ -130,8 +193,8 @@ class DatabaseManager(IDatabaseManager):
                                 "tg_id",
                                 "plan_id",
                                 "payment_amount",
-                                "date_subscribed",
-                                "date_expires",
+                                "subscribed_date",
+                                "expires_date",
                             ],
                             result,
                         ),
@@ -158,8 +221,8 @@ class DatabaseManager(IDatabaseManager):
                                     "tg_id",
                                     "plan_id",
                                     "payment_amount",
-                                    "date_subscribed",
-                                    "date_expires",
+                                    "subscribed_date",
+                                    "expires_date",
                                 ],
                                 i,
                             ),
@@ -174,7 +237,7 @@ class DatabaseManager(IDatabaseManager):
             if subscriptions:
                 return list(
                     filter(
-                        lambda i: i.date_expires > datetime.datetime.now().timestamp(),
+                        lambda i: i.expires_date > datetime.datetime.now().timestamp(),
                         subscriptions,
                     )
                 )
@@ -260,9 +323,11 @@ class DatabaseManager(IDatabaseManager):
 
     _PATH = pyquoks.utils.get_path("db/")
     _DATABASE_OBJECTS = {
+        "payments": PaymentsDatabase,
         "subscriptions": SubscriptionsDatabase,
         "users": UsersDatabase,
     }
+    payments: PaymentsDatabase
     subscriptions: SubscriptionsDatabase
     users: UsersDatabase
 
