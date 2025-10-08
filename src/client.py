@@ -272,7 +272,7 @@ class AiogramClient(aiogram.Dispatcher):
 
                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                 for i in current_subscriptions:
-                    button = self._buttons.view_subscription
+                    button = self._buttons.view_subscription.copy()
                     button.text = button.text.format(i.subscription_id, self._data.plans.plans[i.plan_id].name)
                     button.callback_data = button.callback_data.format(i.subscription_id)
                     markup_builder.row(button)
@@ -289,7 +289,7 @@ class AiogramClient(aiogram.Dispatcher):
                     current_subscription := self._get_subscription_from_string(call.data, "view_subscription_"),
                     models.SubscriptionValues,
             ):
-                view_subscription_config_button = self._buttons.view_subscription_config
+                view_subscription_config_button = self._buttons.view_subscription_config.copy()
                 view_subscription_config_button.callback_data = view_subscription_config_button.callback_data.format(
                     current_subscription.subscription_id,
                 )
@@ -315,7 +315,7 @@ class AiogramClient(aiogram.Dispatcher):
                     config_key=str(None),
                 )
             elif call.data == "profile":
-                invite_friend_button = self._buttons.invite_friend
+                invite_friend_button = self._buttons.invite_friend.copy()
                 invite_friend_button.copy_text = aiogram.types.CopyTextButton(
                     text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
                 )
