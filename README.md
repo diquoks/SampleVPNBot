@@ -36,7 +36,7 @@
 
 - [Docker Desktop](https://docs.docker.com/desktop)
 - [Git](https://git-scm.com/downloads)
-- [Python](https://www.python.org/downloads)
+- [Python 3.13.8](https://www.python.org/downloads)
 
 ### Первоначальная настройка
 
