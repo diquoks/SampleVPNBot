@@ -20,7 +20,7 @@ class AiogramClient(aiogram.Dispatcher):
         self._logger = data.LoggerService(
             name=__name__,
             file_handling=self._config.settings.file_logging,
-            level=logging.DEBUG if self._config.settings.debug else logging.INFO,
+            level=logging.DEBUG if self._config.settings.debug_logging else logging.INFO,
         )
         self._buttons = misc.ButtonsContainer()
         self._user = None

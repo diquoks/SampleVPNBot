@@ -13,17 +13,18 @@ class IDatabaseManager:  # TODO: по готовности перенести в
         _SQL: str = None
         _PATH: str = "{0}.db"
 
-        def __init__(self, parent: IDatabaseManager = None) -> None:
-            os.makedirs(parent._PATH, exist_ok=True)
-            self._PATH = parent._PATH + self._PATH
-            super().__init__(
-                database=self._PATH.format(self._NAME),
-                check_same_thread=False,
-            )
+        def __init__(self, parent: IDatabaseManager) -> None:
+            if isinstance(parent, IDatabaseManager):
+                self._PATH = parent._PATH + self._PATH
 
-            self._cursor = self.cursor()
-            self._db_cursor.execute(self._SQL)
-            self.commit()
+                super().__init__(
+                    database=self._PATH.format(self._NAME),
+                    check_same_thread=False,
+                )
+
+                self._cursor = self.cursor()
+                self._db_cursor.execute(self._SQL)
+                self.commit()
 
         @property
         def _db_cursor(self) -> sqlite3.Cursor:
@@ -33,12 +34,14 @@ class IDatabaseManager:  # TODO: по готовности перенести в
     _DATABASE_OBJECTS: dict[str, type]
 
     def __init__(self) -> None:
-        for k, v in self._DATABASE_OBJECTS.items():
-            setattr(self, k, v(self))
+        os.makedirs(self._PATH, exist_ok=True)
+
+        for name, data_class in self._DATABASE_OBJECTS.items():
+            setattr(self, name, data_class(self))
 
     def close_all(self) -> None:
-        for i in self._DATABASE_OBJECTS.keys():
-            getattr(self, i).close()
+        for database in self._DATABASE_OBJECTS.keys():
+            getattr(self, database).close()
 
 
 # endregion
@@ -66,7 +69,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         _SECTION = "Settings"
         admin_list: list[int]
         bot_token: str
-        debug: bool
+        debug_logging: bool
         file_logging: bool
         skip_updates: bool
 
@@ -83,7 +86,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
             {
                 "admin_list": list,
                 "bot_token": str,
-                "debug": bool,
+                "debug_logging": bool,
                 "file_logging": bool,
                 "skip_updates": bool,
             },
