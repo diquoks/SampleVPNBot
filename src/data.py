@@ -4,6 +4,13 @@ import aiogram
 import pyquoks.data, pyquoks.utils
 import models
 
+# region Constants
+
+DAYS_IN_MONTH = 30
+MINIMUM_PLAN = models.PlansType.MONTH
+
+
+# endregion
 
 # region Abstract classes
 
@@ -109,6 +116,7 @@ class DatabaseManager(IDatabaseManager):
         payment_amount INTEGER NOT NULL,
         payment_currency TEXT NOT NULL,
         provider_payment_id TEXT,
+        payment_payload TEXT NOT NULL,
         payment_date INTEGER NOT NULL
         )
         """
@@ -119,6 +127,7 @@ class DatabaseManager(IDatabaseManager):
                 payment_amount: int,
                 payment_currency: str,
                 provider_payment_id: str | None,
+                payment_payload: str,
                 payment_date: int,
         ) -> None:
             self._db_cursor.execute(
@@ -128,11 +137,12 @@ class DatabaseManager(IDatabaseManager):
                 payment_amount,
                 payment_currency,
                 provider_payment_id,
+                payment_payload,
                 payment_date
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (tg_id, payment_amount, payment_currency, provider_payment_id, payment_date),
+                (tg_id, payment_amount, payment_currency, provider_payment_id, payment_payload, payment_date),
             )
             self.commit()
 
@@ -154,6 +164,7 @@ class DatabaseManager(IDatabaseManager):
                                 "payment_amount",
                                 "payment_currency",
                                 "provider_payment_id",
+                                "payment_payload",
                                 "payment_date",
                             ],
                             result,
