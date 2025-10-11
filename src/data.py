@@ -4,10 +4,15 @@ import aiogram
 import pyquoks.data, pyquoks.utils
 import models
 
+
 # region Constants
 
-DAYS_IN_MONTH = 30
-MINIMUM_PLAN = models.PlansType.MONTH
+class Constants:
+    DAYS_IN_MONTH = 30
+    FIRST_SUBSCRIPTIONS_PAGE = 0
+    MINIMUM_PLAN = models.PlansType.MONTH
+    PLANS_PER_ROW = 2
+    SUBSCRIPTIONS_PER_PAGE = 5
 
 
 # endregion

@@ -16,7 +16,7 @@ class ButtonsContainer:
         )
         self.subscriptions = aiogram.types.InlineKeyboardButton(
             text="Подписки",
-            callback_data="subscriptions",
+            callback_data="subscriptions {0}",
         )
         self.profile = aiogram.types.InlineKeyboardButton(
             text="Профиль",
@@ -58,6 +58,18 @@ class ButtonsContainer:
 
         # region subscriptions
 
+        self.subscriptions_back = aiogram.types.InlineKeyboardButton(
+            text="<",
+            callback_data="subscriptions {0}",
+        )
+        self.subscriptions_page = aiogram.types.InlineKeyboardButton(
+            text="{0} / {1}",
+            callback_data="just_answer",
+        )
+        self.subscriptions_forward = aiogram.types.InlineKeyboardButton(
+            text=">",
+            callback_data="subscriptions {0}",
+        )
         self.subscription = aiogram.types.InlineKeyboardButton(
             text="#{0} «{1}»",
             callback_data="subscription {0}",

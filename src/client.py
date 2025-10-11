@@ -1,5 +1,5 @@
 from __future__ import annotations
-import datetime, logging
+import itertools, datetime, logging, math
 import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.utils.keyboard, \
     aiogram.fsm.context, aiogram.fsm.state
 import models, data, misc
@@ -45,7 +45,7 @@ class AiogramClient(aiogram.Dispatcher):
         self.message.register(self.success_add_funds_handler, aiogram.F.successful_payment)
         self._form_router.message.register(self.add_funds_enter_handler, self._form.add_funds_enter)
 
-        self._minimum_plan = self._data.plans.plans[data.MINIMUM_PLAN]
+        self._minimum_plan = self._data.plans.plans[data.Constants.MINIMUM_PLAN]
         self._time_started = datetime.datetime.now(tz=datetime.timezone.utc)
         self._logger.info(f"{self.name} initialized!")
 
@@ -130,7 +130,7 @@ class AiogramClient(aiogram.Dispatcher):
             provider_token=self._config.payments.provider_token,
             payload=" ".join([
                 self.add_funds_invoice.__name__,
-                amount,
+                str(amount),
             ]),
             title="Пополнение баланса",
             description=f"Счёт на сумму {self._get_amount_with_currency(amount)}",
@@ -170,9 +170,13 @@ class AiogramClient(aiogram.Dispatcher):
             referrer_id=self._check_referrer_id(message.from_user.id, command.args)
         )
 
+        subscriptions_button = self._buttons.subscriptions.model_copy()
+        subscriptions_button.callback_data = subscriptions_button.callback_data.format(
+            data.Constants.FIRST_SUBSCRIPTIONS_PAGE)
+
         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
         markup_builder.row(self._buttons.plans)
-        markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+        markup_builder.row(subscriptions_button, self._buttons.profile)
 
         # (TEXT_PENDING)
         await self._bot.send_message(
@@ -223,9 +227,14 @@ class AiogramClient(aiogram.Dispatcher):
         try:
             match call.data.split():
                 case ["start"]:
+                    subscriptions_button = self._buttons.subscriptions.model_copy()
+                    subscriptions_button.callback_data = subscriptions_button.callback_data.format(
+                        data.Constants.FIRST_SUBSCRIPTIONS_PAGE,
+                    )
+
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     markup_builder.row(self._buttons.plans)
-                    markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+                    markup_builder.row(subscriptions_button, self._buttons.profile)
 
                     # (TEXT_PENDING)
                     await self._bot.edit_message_text(
@@ -238,8 +247,11 @@ class AiogramClient(aiogram.Dispatcher):
                     plan_buttons = [getattr(self._buttons, f"plan_{plan_type.value}") for plan_type in models.PlansType]
 
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(*plan_buttons[:len(plan_buttons) // 2])
-                    markup_builder.row(*plan_buttons[len(plan_buttons) // 2:])
+                    for buttons_row in itertools.batched(
+                            plan_buttons,
+                            data.Constants.PLANS_PER_ROW,
+                    ):
+                        markup_builder.row(*buttons_row)
                     markup_builder.row(self._buttons.back_to_start)
 
                     # (TEXT_PENDING)
@@ -249,20 +261,51 @@ class AiogramClient(aiogram.Dispatcher):
                         text="Выберите тариф:",
                         reply_markup=markup_builder.as_markup(),
                     )
-                # TODO: отображение страниц
-                case ["subscriptions"]:
+                case ["subscriptions", current_page_id]:
+                    current_page_id = int(current_page_id)
+                    previous_page_id = current_page_id - 1
+                    next_page_id = current_page_number = current_page_id + 1
                     current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
                         tg_id=call.from_user.id,
                     )
+                    total_pages_count = math.ceil(len(current_subscriptions) / data.Constants.SUBSCRIPTIONS_PER_PAGE)
 
                     if current_subscriptions:
+                        subscriptions_back_button = self._buttons.subscriptions_back.model_copy()
+                        subscriptions_back_button.callback_data = subscriptions_back_button.callback_data.format(
+                            previous_page_id,
+                        ) if previous_page_id >= data.Constants.FIRST_SUBSCRIPTIONS_PAGE else "just_answer"
+
+                        subscriptions_page_button = self._buttons.subscriptions_page.model_copy()
+                        subscriptions_page_button.text = subscriptions_page_button.text.format(
+                            current_page_number,
+                            total_pages_count,
+                        )
+
+                        subscriptions_forward_button = self._buttons.subscriptions_forward.model_copy()
+                        subscriptions_forward_button.callback_data = subscriptions_forward_button.callback_data.format(
+                            next_page_id,
+                        ) if next_page_id < total_pages_count else "just_answer"
+
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                        for subscription in current_subscriptions:
+                        for subscription in list(
+                                itertools.batched(
+                                    current_subscriptions,
+                                    data.Constants.SUBSCRIPTIONS_PER_PAGE,
+                                )
+                        )[current_page_id]:
                             button = self._buttons.subscription.model_copy()
-                            button.text = button.text.format(subscription.subscription_id,
-                                                             self._data.plans.plans[subscription.plan_id].name)
+                            button.text = button.text.format(
+                                subscription.subscription_id,
+                                self._data.plans.plans[subscription.plan_id].name,
+                            )
                             button.callback_data = button.callback_data.format(subscription.subscription_id)
                             markup_builder.row(button)
+                        markup_builder.row(
+                            subscriptions_back_button,
+                            subscriptions_page_button,
+                            subscriptions_forward_button,
+                        )
                         markup_builder.row(self._buttons.back_to_start)
 
                         # (TEXT_PENDING)
@@ -316,7 +359,7 @@ class AiogramClient(aiogram.Dispatcher):
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
-                        text=f"Тариф «{current_plan.name}»\n{current_plan.description}\n\nПериод подписки: {current_plan.months * data.DAYS_IN_MONTH} дней",
+                        text=f"Тариф «{current_plan.name}»\n{current_plan.description}\n\nПериод подписки: {current_plan.months * data.Constants.DAYS_IN_MONTH} дней",
                         reply_markup=markup_builder.as_markup(),
                     )
                 # TODO: выдача ключа (DATABASE)
@@ -345,7 +388,7 @@ class AiogramClient(aiogram.Dispatcher):
                             subscribed_date=int(datetime_subscribed.timestamp()),
                             expires_date=int(
                                 (datetime_subscribed + datetime.timedelta(
-                                    days=current_plan.months * data.DAYS_IN_MONTH,
+                                    days=current_plan.months * data.Constants.DAYS_IN_MONTH,
                                 )).timestamp()
                             ),
                         )
@@ -432,8 +475,11 @@ class AiogramClient(aiogram.Dispatcher):
 
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     markup_builder.row(self._buttons.add_funds_enter)
-                    markup_builder.row(*add_funds_buttons[:len(add_funds_buttons) // 2])
-                    markup_builder.row(*add_funds_buttons[len(add_funds_buttons) // 2:])
+                    for buttons_row in itertools.batched(
+                            add_funds_buttons,
+                            data.Constants.PLANS_PER_ROW,
+                    ):
+                        markup_builder.row(*buttons_row)
                     markup_builder.row(self._buttons.back_to_profile)
 
                     # (TEXT_PENDING)
@@ -483,6 +529,8 @@ class AiogramClient(aiogram.Dispatcher):
                             text=f"Сумма пополнения превышает максимальную ({self._get_amount_with_currency(self._config.payments.max_balance - current_user.balance)})!",
                             show_alert=True,
                         )
+                case ["just_answer"]:
+                    await self._bot.answer_callback_query(callback_query_id=call.id)
                 case _:
                     await self._bot.answer_callback_query(
                         callback_query_id=call.id,
