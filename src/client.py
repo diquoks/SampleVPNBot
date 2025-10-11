@@ -46,7 +46,6 @@ class AiogramClient(aiogram.Dispatcher):
         self._form_router.message.register(self.add_funds_enter_handler, self._form.add_funds_enter)
 
         self._minimum_plan = self._data.plans.plans[data.Constants.MINIMUM_PLAN]
-        self._time_started = datetime.datetime.now(tz=datetime.timezone.utc)
         self._logger.info(f"{self.name} initialized!")
 
     # region Properties and helpers

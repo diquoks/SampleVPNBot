@@ -1,5 +1,5 @@
 from __future__ import annotations
-import datetime, sqlite3, os
+import datetime
 import aiogram
 import pyquoks.data, pyquoks.utils
 import models
@@ -17,51 +17,9 @@ class Constants:
 
 # endregion
 
-# region Abstract classes
-
-class IDatabaseManager:  # TODO: по готовности перенести в `pyquoks`
-    class IDatabase(sqlite3.Connection):
-        _NAME: str = None
-        _SQL: str = None
-        _PATH: str = "{0}.db"
-
-        def __init__(self, parent: IDatabaseManager) -> None:
-            if isinstance(parent, IDatabaseManager):
-                self._PATH = parent._PATH + self._PATH
-
-                super().__init__(
-                    database=self._PATH.format(self._NAME),
-                    check_same_thread=False,
-                )
-
-                self._cursor = self.cursor()
-                self._db_cursor.execute(self._SQL)
-                self.commit()
-
-        @property
-        def _db_cursor(self) -> sqlite3.Cursor:
-            return self._cursor
-
-    _PATH: str
-    _DATABASE_OBJECTS: dict[str, type]
-
-    def __init__(self) -> None:
-        os.makedirs(self._PATH, exist_ok=True)
-
-        for name, data_class in self._DATABASE_OBJECTS.items():
-            setattr(self, name, data_class(self))
-
-    def close_all(self) -> None:
-        for database in self._DATABASE_OBJECTS.keys():
-            getattr(self, database).close()
-
-
-# endregion
-
-# region Named classes
+# region Providers
 
 class DataProvider(pyquoks.data.IDataProvider):
-    _PATH = pyquoks.utils.get_path("data/{0}.json")
     _DATA_VALUES = {
         "plans": models.PlansContainer,
     }
@@ -111,8 +69,12 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
     settings: SettingsConfig
 
 
-class DatabaseManager(IDatabaseManager):
-    class PaymentsDatabase(IDatabaseManager.IDatabase):
+# endregion
+
+# region Managers
+
+class DatabaseManager(pyquoks.data.IDatabaseManager):
+    class PaymentsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "payments"
         _SQL = f"""
         CREATE TABLE IF NOT EXISTS {_NAME} (
@@ -179,7 +141,7 @@ class DatabaseManager(IDatabaseManager):
             else:
                 return None
 
-    class SubscriptionsDatabase(IDatabaseManager.IDatabase):
+    class SubscriptionsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
         _SQL = f"""
         CREATE TABLE IF NOT EXISTS {_NAME} (
@@ -277,7 +239,7 @@ class DatabaseManager(IDatabaseManager):
                 )
             )
 
-    class UsersDatabase(IDatabaseManager.IDatabase):
+    class UsersDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "users"
         _SQL = f"""
         CREATE TABLE IF NOT EXISTS {_NAME} (
@@ -354,7 +316,6 @@ class DatabaseManager(IDatabaseManager):
             )
             return self._db_cursor.fetchone()[0]
 
-    _PATH = pyquoks.utils.get_path("db/")
     _DATABASE_OBJECTS = {
         "payments": PaymentsDatabase,
         "subscriptions": SubscriptionsDatabase,
@@ -364,6 +325,10 @@ class DatabaseManager(IDatabaseManager):
     subscriptions: SubscriptionsDatabase
     users: UsersDatabase
 
+
+# endregion
+
+# region Services
 
 class LoggerService(pyquoks.data.LoggerService):
     def log_user_interaction(self, user: aiogram.types.User, interaction: str) -> None:
