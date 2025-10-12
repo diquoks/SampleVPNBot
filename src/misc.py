@@ -16,7 +16,7 @@ class ButtonsContainer:
         )
         self.subscriptions = aiogram.types.InlineKeyboardButton(
             text="Подписки",
-            callback_data="subscriptions {0}",
+            callback_data=f"subscriptions {data.Constants.FIRST_SUBSCRIPTIONS_PAGE}",
         )
         self.profile = aiogram.types.InlineKeyboardButton(
             text="Профиль",
@@ -86,6 +86,10 @@ class ButtonsContainer:
             text="Скачать AmneziaVPN",
             url="https://storage.googleapis.com/amnezia/amnezia.org",
         )
+        self.subscription_switch_active = aiogram.types.InlineKeyboardButton(
+            text=str(),
+            callback_data="subscription_switch_active {0}",
+        )
 
         # endregion
 
@@ -130,7 +134,7 @@ class ButtonsContainer:
         )
         self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(
             text="Назад",
-            callback_data="subscriptions",
+            callback_data=f"subscriptions {data.Constants.FIRST_SUBSCRIPTIONS_PAGE}",
         )
         self.back_to_profile = aiogram.types.InlineKeyboardButton(
             text="Назад",

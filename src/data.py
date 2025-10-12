@@ -150,7 +150,8 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         plan_id INTEGER NOT NULL,
         payment_amount INTEGER NOT NULL,
         subscribed_date INTEGER NOT NULL,
-        expires_date INTEGER NOT NULL
+        expires_date INTEGER NOT NULL,
+        is_active INTEGER NOT NULL
         )
         """
 
@@ -161,6 +162,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 payment_amount: int,
                 subscribed_date: int,
                 expires_date: int,
+                is_active: int,
         ) -> None:
             self._db_cursor.execute(
                 f"""
@@ -169,11 +171,12 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 plan_id,
                 payment_amount,
                 subscribed_date,
-                expires_date
+                expires_date,
+                is_active
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (tg_id, plan_id, payment_amount, subscribed_date, expires_date),
+                (tg_id, plan_id, payment_amount, subscribed_date, expires_date, is_active),
             )
             self.commit()
 
@@ -196,6 +199,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                                 "payment_amount",
                                 "subscribed_date",
                                 "expires_date",
+                                "is_active",
                             ],
                             result,
                         ),
@@ -203,6 +207,19 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
             else:
                 return None
+
+        def switch_active(self, subscription_id: int) -> None:
+            current_subscription = self.get_subscription(
+                subscription_id=subscription_id,
+            )
+
+            self._db_cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET is_active = ? WHERE subscription_id == ?
+                """,
+                (int(not bool(current_subscription.is_active)), subscription_id),
+            )
+            self.commit()
 
         def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             self._db_cursor.execute(
@@ -223,6 +240,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                                 "payment_amount",
                                 "subscribed_date",
                                 "expires_date",
+                                "is_active",
                             ],
                             i,
                         ),

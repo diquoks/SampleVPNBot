@@ -67,6 +67,7 @@ class SubscriptionValues(pyquoks.models.IValues):
         "payment_amount",
         "subscribed_date",
         "expires_date",
+        "is_active",
     }
     subscription_id: int | None
     tg_id: int | None
@@ -74,6 +75,7 @@ class SubscriptionValues(pyquoks.models.IValues):
     payment_amount: int | None
     subscribed_date: int | None
     expires_date: int | None
+    is_active: int | None
 
 
 class UserValues(pyquoks.models.IValues):
