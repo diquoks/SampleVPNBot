@@ -9,10 +9,10 @@ import models
 
 class Constants:
     DAYS_IN_MONTH = 30
-    FIRST_SUBSCRIPTIONS_PAGE = 0
+    ELEMENTS_PER_PAGE = 5
+    ELEMENTS_PER_ROW = 2
+    FIRST_PAGE_ID = 0
     MINIMUM_PLAN = models.PlansType.MONTH
-    PLANS_PER_ROW = 2
-    SUBSCRIPTIONS_PER_PAGE = 5
 
 
 # endregion
@@ -307,6 +307,29 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
             else:
                 return None
+
+        def get_all_users(self) -> list[models.UserValues]:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME}
+                """,
+            )
+            results = self._db_cursor.fetchall()
+            return [
+                models.UserValues(
+                    **dict(
+                        zip(
+                            [
+                                "tg_id",
+                                "tg_username",
+                                "balance",
+                                "referrer_id",
+                            ],
+                            i,
+                        ),
+                    ),
+                ) for i in results
+            ]
 
         def edit_balance(self, tg_id: int, balance: int) -> None:
             self._db_cursor.execute(

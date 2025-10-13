@@ -16,11 +16,40 @@ class ButtonsContainer:
         )
         self.subscriptions = aiogram.types.InlineKeyboardButton(
             text="Подписки",
-            callback_data=f"subscriptions {data.Constants.FIRST_SUBSCRIPTIONS_PAGE}",
+            callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
         )
         self.profile = aiogram.types.InlineKeyboardButton(
             text="Профиль",
             callback_data="profile",
+        )
+
+        # endregion
+
+        # region /admin
+
+        self.admin_users = aiogram.types.InlineKeyboardButton(
+            text="Пользователи",
+            callback_data=f"admin_users {data.Constants.FIRST_PAGE_ID}",
+        )
+        self.admin_configs = aiogram.types.InlineKeyboardButton(
+            text="Конфигурации",
+            callback_data=f"admin_configs {data.Constants.FIRST_PAGE_ID}",
+        )
+        self.admin_subscriptions = aiogram.types.InlineKeyboardButton(
+            text="Подписки",
+            callback_data=f"admin_subscriptions {data.Constants.FIRST_PAGE_ID}",
+        )
+        self.admin_payments = aiogram.types.InlineKeyboardButton(
+            text="Транзакции",
+            callback_data=f"admin_payments {data.Constants.FIRST_PAGE_ID}",
+        )
+        self.admin_logs = aiogram.types.InlineKeyboardButton(
+            text="Логи",
+            callback_data="admin_logs",
+        )
+        self.admin_settings = aiogram.types.InlineKeyboardButton(
+            text="Настройки",
+            callback_data="admin_settings",
         )
 
         # endregion
@@ -57,23 +86,6 @@ class ButtonsContainer:
         # endregion
 
         # region subscriptions
-
-        self.subscriptions_back = aiogram.types.InlineKeyboardButton(
-            text="<",
-            callback_data="subscriptions {0}",
-        )
-        self.subscriptions_page = aiogram.types.InlineKeyboardButton(
-            text="{0} / {1}",
-            callback_data="just_answer",
-        )
-        self.subscriptions_forward = aiogram.types.InlineKeyboardButton(
-            text=">",
-            callback_data="subscriptions {0}",
-        )
-        self.subscription = aiogram.types.InlineKeyboardButton(
-            text="#{0} «{1}»",
-            callback_data="subscription {0}",
-        )
         self.subscription_config = aiogram.types.InlineKeyboardButton(
             text="Файл конфигурации",
             callback_data="subscription_config {0}",
@@ -122,6 +134,27 @@ class ButtonsContainer:
 
         # endregion
 
+        # region page
+
+        self.page_item = aiogram.types.InlineKeyboardButton(
+            text="#{0} {1}",
+            callback_data=str(),
+        )
+        self.page_previous = aiogram.types.InlineKeyboardButton(
+            text="<",
+            callback_data=str(),
+        )
+        self.page_info = aiogram.types.InlineKeyboardButton(
+            text="{0} / {1}",
+            callback_data=str(),
+        )
+        self.page_next = aiogram.types.InlineKeyboardButton(
+            text=">",
+            callback_data=str(),
+        )
+
+        # endregion
+
         # region back_to_*
 
         self.back_to_start = aiogram.types.InlineKeyboardButton(
@@ -134,7 +167,7 @@ class ButtonsContainer:
         )
         self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(
             text="Назад",
-            callback_data=f"subscriptions {data.Constants.FIRST_SUBSCRIPTIONS_PAGE}",
+            callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
         )
         self.back_to_profile = aiogram.types.InlineKeyboardButton(
             text="Назад",
@@ -143,6 +176,10 @@ class ButtonsContainer:
         self.back_to_add_funds = aiogram.types.InlineKeyboardButton(
             text="Отмена",
             callback_data="add_funds",
+        )
+        self.back_to_admin = aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data="admin",
         )
 
         # endregion
