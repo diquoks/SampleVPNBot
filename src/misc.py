@@ -136,8 +136,12 @@ class ButtonsContainer:
 
         # region page
 
-        self.page_item = aiogram.types.InlineKeyboardButton(
-            text="#{0} {1}",
+        self.page_item_user = aiogram.types.InlineKeyboardButton(
+            text="{0} ({1})",
+            callback_data=str(),
+        )
+        self.page_item_subscription = aiogram.types.InlineKeyboardButton(
+            text="#{0} «{1}»",
             callback_data=str(),
         )
         self.page_previous = aiogram.types.InlineKeyboardButton(

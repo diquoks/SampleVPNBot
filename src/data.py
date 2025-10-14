@@ -248,6 +248,32 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 ) for i in results
             ]
 
+        def get_all_subscriptions(self) -> list[models.SubscriptionValues]:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME}
+                """,
+            )
+            results = self._db_cursor.fetchall()
+            return [
+                models.SubscriptionValues(
+                    **dict(
+                        zip(
+                            [
+                                "subscription_id",
+                                "tg_id",
+                                "plan_id",
+                                "payment_amount",
+                                "subscribed_date",
+                                "expires_date",
+                                "is_active",
+                            ],
+                            i,
+                        ),
+                    ),
+                ) for i in results
+            ]
+
         def get_user_active_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             subscriptions = self.get_user_subscriptions(tg_id)
             return list(
