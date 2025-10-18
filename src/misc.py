@@ -40,7 +40,7 @@ class ButtonsContainer:
             callback_data=f"admin_subscriptions {data.Constants.FIRST_PAGE_ID}",
         )
         self.admin_payments = aiogram.types.InlineKeyboardButton(
-            text="Транзакции",
+            text="Платежи",
             callback_data=f"admin_payments {data.Constants.FIRST_PAGE_ID}",
         )
         self.admin_logs = aiogram.types.InlineKeyboardButton(
@@ -50,6 +50,11 @@ class ButtonsContainer:
         self.admin_settings = aiogram.types.InlineKeyboardButton(
             text="Настройки",
             callback_data="admin_settings",
+        )
+
+        self.admin_user = aiogram.types.InlineKeyboardButton(
+            text="Пользователь",
+            callback_data="admin_user {0}",
         )
 
         # endregion

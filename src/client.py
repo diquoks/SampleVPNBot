@@ -136,7 +136,7 @@ class AiogramClient(aiogram.Dispatcher):
     async def send_config(self, call: aiogram.types.CallbackQuery, config_key: str) -> None:
         self._logger.log_user_interaction(
             user=call.from_user,
-            interaction=f"{self.send_config.__name__}(config_key={config_key})",
+            interaction=f"{self.send_config.__name__}({config_key=})",
         )
 
         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
@@ -166,7 +166,7 @@ class AiogramClient(aiogram.Dispatcher):
     ) -> None:
         self._logger.log_user_interaction(
             user=user,
-            interaction=f"{self.add_funds_invoice.__name__}(amount={amount})",
+            interaction=f"{self.add_funds_invoice.__name__}({amount=})",
         )
 
         await self._bot.send_invoice(
@@ -239,12 +239,14 @@ class AiogramClient(aiogram.Dispatcher):
             message: aiogram.types.Message,
             command: aiogram.filters.CommandObject,
     ) -> None:
+        is_admin = message.from_user.id in self._config.settings.admin_list
+
         self._logger.log_user_interaction(
             user=message.from_user,
-            interaction=f"{command.text} (admin={message.from_user.id in self._config.settings.admin_list})",
+            interaction=f"{command.text} ({is_admin=})",
         )
 
-        if message.from_user.id in self._config.settings.admin_list:
+        if is_admin:
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
             markup_builder.row(self._buttons.admin_users, self._buttons.admin_configs)
             markup_builder.row(self._buttons.admin_subscriptions, self._buttons.admin_payments)
@@ -681,6 +683,7 @@ class AiogramClient(aiogram.Dispatcher):
                                     str(current_user_id),
                                 ])
 
+                                # TODO: меню для изменения баланса пользователя
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                 markup_builder.row(admin_subscriptions_button)
                                 markup_builder.row(self._buttons.back_to_admin)
@@ -697,6 +700,7 @@ class AiogramClient(aiogram.Dispatcher):
                                     ),
                                     reply_markup=markup_builder.as_markup(),
                                 )
+                            # TODO: `case ["admin_configs", current_page_id]:` (DATABASE)
                             case ["admin_subscriptions", current_page_id, *current_user_id]:
                                 current_page_id = int(current_page_id)
                                 current_user_id = int(current_user_id[0]) if current_user_id else None
@@ -742,7 +746,49 @@ class AiogramClient(aiogram.Dispatcher):
                                         text="Активные подписки отсутствуют!",
                                         show_alert=True,
                                     )
-                            # TODO: `case ["admin_subscription", current_subscription_id]:`
+                            case ["admin_subscription", current_subscription_id]:
+                                current_subscription_id = int(current_subscription_id)
+
+                                current_subscription = self._database.subscriptions.get_subscription(
+                                    subscription_id=current_subscription_id,
+                                )
+
+                                current_user = self._database.users.get_user(
+                                    tg_id=current_subscription.tg_id,
+                                )
+
+                                subscription_config_button = self._buttons.subscription_config.model_copy()
+                                subscription_config_button.callback_data = subscription_config_button.callback_data.format(
+                                    current_subscription.subscription_id,
+                                )
+
+                                admin_user_button = self._buttons.admin_user.model_copy()
+                                admin_user_button.callback_data = admin_user_button.callback_data.format(
+                                    current_user.tg_id,
+                                )
+
+                                # TODO: кнопка для досрочного завершения подписки (DATABASE)
+                                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                markup_builder.row(subscription_config_button)
+                                markup_builder.row(admin_user_button)
+                                markup_builder.row(self._buttons.back_to_admin)
+
+                                await self._bot.edit_message_text(
+                                    chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    text=(
+                                        f"Подписка #{current_subscription.subscription_id}\n"
+                                        f"Тариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n"
+                                        f"\n"
+                                        f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
+                                        f"\n"
+                                        f"Статус: {"Активна" if bool(current_subscription.is_active) else "Отменена"}\n"
+                                        f"Подключена: {datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}\n"
+                                        f"Истекает: {datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}"
+                                    ),
+                                    reply_markup=markup_builder.as_markup(),
+                                )
+                            # TODO: `case ["admin_payments", current_page_id]:`
                             case ["admin_logs"]:
                                 if self._config.settings.file_logging:
                                     logs_file = self._logger.get_logs_file()
@@ -760,6 +806,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         text="Логирование отключено!",
                                         show_alert=True,
                                     )
+                            # TODO: `case ["admin_settings"]:`
                             case _:
                                 await self._bot.answer_callback_query(
                                     callback_query_id=call.id,
@@ -840,9 +887,11 @@ class AiogramClient(aiogram.Dispatcher):
             message: aiogram.types.Message,
             state: aiogram.fsm.context.FSMContext,
     ) -> None:
+        amount = message.text
+
         self._logger.log_user_interaction(
             user=message.from_user,
-            interaction=f"{self.add_funds_enter_handler.__name__} (amount={message.text})",
+            interaction=f"{self.add_funds_enter_handler.__name__} ({amount=})",
         )
 
         self._database.users.add_user(
@@ -857,7 +906,7 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
         try:
-            amount = int(message.text)
+            amount = int(amount)
 
             if self._minimum_plan.price * self._minimum_plan.months <= current_user.balance + amount <= self._config.payments.max_balance and self._minimum_plan.price * self._minimum_plan.months < amount:
                 await self.add_funds_invoice(
