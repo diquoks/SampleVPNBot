@@ -82,7 +82,7 @@ class AiogramClient(aiogram.Dispatcher):
             return None
 
     def _get_amount_with_currency(self, amount: int) -> str:
-        return " ".join([str(amount), self._config.payments.currency])
+        return f"{amount} {self._config.payments.currency}"
 
     def _get_page_buttons(
             self,
@@ -180,10 +180,7 @@ class AiogramClient(aiogram.Dispatcher):
             ],
             currency=self._config.payments.currency,
             provider_token=self._config.payments.provider_token,
-            payload=" ".join([
-                self.add_funds_invoice.__name__,
-                str(amount),
-            ]),
+            payload=f"{self.add_funds_invoice.__name__} {amount}",
             title="Пополнение баланса",
             description=f"Счёт на сумму {self._get_amount_with_currency(amount)}",
         )
@@ -321,6 +318,7 @@ class AiogramClient(aiogram.Dispatcher):
 
                     if current_subscriptions:
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                        subscription: models.SubscriptionValues
                         for subscription in list(
                                 itertools.batched(
                                     current_subscriptions,
@@ -638,6 +636,7 @@ class AiogramClient(aiogram.Dispatcher):
 
                                 if current_users:
                                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                    user: models.UserValues
                                     for user in list(
                                             itertools.batched(
                                                 current_users,
@@ -678,14 +677,15 @@ class AiogramClient(aiogram.Dispatcher):
                                 )
 
                                 admin_subscriptions_button = self._buttons.admin_subscriptions.model_copy()
-                                admin_subscriptions_button.callback_data = " ".join([
-                                    admin_subscriptions_button.callback_data,
-                                    str(current_user_id),
-                                ])
+                                admin_subscriptions_button.callback_data = f"{admin_subscriptions_button.callback_data} {current_user_id}"
+
+                                admin_payments_button = self._buttons.admin_payments.model_copy()
+                                admin_payments_button.callback_data = f"{admin_payments_button.callback_data} {current_user_id}"
 
                                 # TODO: меню для изменения баланса пользователя
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                 markup_builder.row(admin_subscriptions_button)
+                                markup_builder.row(admin_payments_button)
                                 markup_builder.row(self._buttons.back_to_admin)
 
                                 await self._bot.edit_message_text(
@@ -711,6 +711,7 @@ class AiogramClient(aiogram.Dispatcher):
 
                                 if current_subscriptions:
                                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                    subscription: models.SubscriptionValues
                                     for subscription in list(
                                             itertools.batched(
                                                 current_subscriptions,
@@ -746,8 +747,14 @@ class AiogramClient(aiogram.Dispatcher):
                                         text="Активные подписки отсутствуют!",
                                         show_alert=True,
                                     )
-                            case ["admin_subscription", current_subscription_id]:
+                            case ["admin_subscription" | "admin_subscription_expire", current_subscription_id]:
                                 current_subscription_id = int(current_subscription_id)
+
+                                if "admin_subscription_expire" in call.data.split():
+                                    self._database.subscriptions.edit_expires_date(
+                                        subscription_id=current_subscription_id,
+                                        expires_date=int(datetime.datetime.now().timestamp()),
+                                    )
 
                                 current_subscription = self._database.subscriptions.get_subscription(
                                     subscription_id=current_subscription_id,
@@ -762,14 +769,20 @@ class AiogramClient(aiogram.Dispatcher):
                                     current_subscription.subscription_id,
                                 )
 
+                                admin_subscription_expire_button = self._buttons.admin_subscription_expire.model_copy()
+                                admin_subscription_expire_button.callback_data = admin_subscription_expire_button.callback_data.format(
+                                    current_subscription.subscription_id,
+                                )
+
                                 admin_user_button = self._buttons.admin_user.model_copy()
                                 admin_user_button.callback_data = admin_user_button.callback_data.format(
                                     current_user.tg_id,
                                 )
 
-                                # TODO: кнопка для досрочного завершения подписки (DATABASE)
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                                markup_builder.row(subscription_config_button)
+                                if current_subscription.expires_date > datetime.datetime.now().timestamp():
+                                    markup_builder.row(subscription_config_button)
+                                    markup_builder.row(admin_subscription_expire_button)
                                 markup_builder.row(admin_user_button)
                                 markup_builder.row(self._buttons.back_to_admin)
 
@@ -782,13 +795,59 @@ class AiogramClient(aiogram.Dispatcher):
                                         f"\n"
                                         f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
                                         f"\n"
-                                        f"Статус: {"Активна" if bool(current_subscription.is_active) else "Отменена"}\n"
+                                        f"Статус: {("Активна" if bool(current_subscription.is_active) else "Отменена") if current_subscription.expires_date > datetime.datetime.now().timestamp() else "Истекла"}\n"
                                         f"Подключена: {datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}\n"
                                         f"Истекает: {datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}"
                                     ),
                                     reply_markup=markup_builder.as_markup(),
                                 )
-                            # TODO: `case ["admin_payments", current_page_id]:`
+                            case ["admin_payments", current_page_id, *current_user_id]:
+                                current_page_id = int(current_page_id)
+                                current_user_id = int(current_user_id[0]) if current_user_id else None
+
+                                current_payments = self._database.payments.get_user_payments(
+                                    tg_id=current_user_id,
+                                ) if current_user_id else self._database.payments.get_all_payments()
+
+                                if current_payments:
+                                    markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                    payment: models.PaymentValues
+                                    for payment in list(
+                                            itertools.batched(
+                                                current_payments,
+                                                data.Constants.ELEMENTS_PER_PAGE,
+                                            )
+                                    )[current_page_id]:
+                                        button = self._buttons.page_item_payment.model_copy()
+                                        button.text = button.text.format(
+                                            payment.payment_id,
+                                            self._get_amount_with_currency(payment.payment_amount),
+                                        )
+                                        button.callback_data = f"admin_payment {payment.payment_id}"
+                                        markup_builder.row(button)
+                                    markup_builder.row(
+                                        *self._get_page_buttons(
+                                            page="admin_payments",
+                                            page_items=current_payments,
+                                            current_page_id=current_page_id,
+                                            current_user_id=current_user_id,
+                                        )
+                                    )
+                                    markup_builder.row(self._buttons.back_to_admin)
+
+                                    await self._bot.edit_message_text(
+                                        chat_id=call.message.chat.id,
+                                        message_id=call.message.message_id,
+                                        text="Выберите платёж:",
+                                        reply_markup=markup_builder.as_markup(),
+                                    )
+                                else:
+                                    await self._bot.answer_callback_query(
+                                        callback_query_id=call.id,
+                                        text="Совершённые платежи отсутствуют!",
+                                        show_alert=True,
+                                    )
+                            # TODO: `case ["admin_payment", current_payment_id]:`
                             case ["admin_logs"]:
                                 if self._config.settings.file_logging:
                                     logs_file = self._logger.get_logs_file()

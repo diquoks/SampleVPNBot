@@ -141,6 +141,59 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             else:
                 return None
 
+        def get_all_payments(self) -> list[models.PaymentValues] | None:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME}
+                """,
+            )
+            results = self._db_cursor.fetchall()
+            return [
+                models.PaymentValues(
+                    **dict(
+                        zip(
+                            [
+                                "payment_id",
+                                "tg_id",
+                                "payment_amount",
+                                "payment_currency",
+                                "provider_payment_id",
+                                "payment_payload",
+                                "payment_date",
+                            ],
+                            i,
+                        ),
+                    ),
+                ) for i in results
+            ]
+
+        def get_user_payments(self, tg_id: int) -> list[models.PaymentValues]:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE tg_id == ?
+                """,
+                (tg_id,),
+            )
+            results = self._db_cursor.fetchall()
+            return [
+                models.PaymentValues(
+                    **dict(
+                        zip(
+                            [
+                                "payment_id",
+                                "tg_id",
+                                "payment_amount",
+                                "payment_currency",
+                                "provider_payment_id",
+                                "payment_payload",
+                                "payment_date",
+                            ],
+                            i,
+                        ),
+                    ),
+                ) for i in results
+            ]
+
     class SubscriptionsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
         _SQL = f"""
@@ -208,25 +261,11 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             else:
                 return None
 
-        def switch_active(self, subscription_id: int) -> None:
-            current_subscription = self.get_subscription(
-                subscription_id=subscription_id,
-            )
-
+        def get_all_subscriptions(self) -> list[models.SubscriptionValues]:
             self._db_cursor.execute(
                 f"""
-                UPDATE {self._NAME} SET is_active = ? WHERE subscription_id == ?
+                SELECT * FROM {self._NAME}
                 """,
-                (int(not bool(current_subscription.is_active)), subscription_id),
-            )
-            self.commit()
-
-        def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
-            self._db_cursor.execute(
-                f"""
-                SELECT * FROM {self._NAME} WHERE tg_id == ?
-                """,
-                (tg_id,),
             )
             results = self._db_cursor.fetchall()
             return [
@@ -248,11 +287,12 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 ) for i in results
             ]
 
-        def get_all_subscriptions(self) -> list[models.SubscriptionValues]:
+        def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             self._db_cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME}
+                SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
+                (tg_id,),
             )
             results = self._db_cursor.fetchall()
             return [
@@ -282,6 +322,28 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                     subscriptions,
                 )
             )
+
+        def edit_expires_date(self, subscription_id: int, expires_date: int) -> None:
+            self._db_cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET expires_date = ? WHERE subscription_id == ?
+                """,
+                (expires_date, subscription_id),
+            )
+            self.commit()
+
+        def switch_active(self, subscription_id: int) -> None:
+            current_subscription = self.get_subscription(
+                subscription_id=subscription_id,
+            )
+
+            self._db_cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET is_active = ? WHERE subscription_id == ?
+                """,
+                (int(not bool(current_subscription.is_active)), subscription_id),
+            )
+            self.commit()
 
     class UsersDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "users"
@@ -357,6 +419,15 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 ) for i in results
             ]
 
+        def get_ref_count(self, tg_id: int) -> int:
+            self._db_cursor.execute(
+                f"""
+                SELECT COUNT(*) from {self._NAME} WHERE referrer_id == ?
+                """,
+                (tg_id,),
+            )
+            return self._db_cursor.fetchone()[0]
+
         def edit_balance(self, tg_id: int, balance: int) -> None:
             self._db_cursor.execute(
                 f"""
@@ -373,15 +444,6 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         def reduce_balance(self, tg_id: int, amount: int) -> None:
             current_user = self.get_user(tg_id)
             self.edit_balance(tg_id, current_user.balance - amount)
-
-        def get_ref_count(self, tg_id: int) -> int:
-            self._db_cursor.execute(
-                f"""
-                SELECT COUNT(*) from {self._NAME} WHERE referrer_id == ?
-                """,
-                (tg_id,),
-            )
-            return self._db_cursor.fetchone()[0]
 
     _DATABASE_OBJECTS = {
         "payments": PaymentsDatabase,

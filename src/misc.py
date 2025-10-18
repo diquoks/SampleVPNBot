@@ -57,6 +57,11 @@ class ButtonsContainer:
             callback_data="admin_user {0}",
         )
 
+        self.admin_subscription_expire = aiogram.types.InlineKeyboardButton(
+            text="Завершить подписку",
+            callback_data="admin_subscription_expire {0}",
+        )
+
         # endregion
 
         # region plans
@@ -141,14 +146,6 @@ class ButtonsContainer:
 
         # region page
 
-        self.page_item_user = aiogram.types.InlineKeyboardButton(
-            text="{0} ({1})",
-            callback_data=str(),
-        )
-        self.page_item_subscription = aiogram.types.InlineKeyboardButton(
-            text="#{0} «{1}»",
-            callback_data=str(),
-        )
         self.page_previous = aiogram.types.InlineKeyboardButton(
             text="<",
             callback_data=str(),
@@ -159,6 +156,19 @@ class ButtonsContainer:
         )
         self.page_next = aiogram.types.InlineKeyboardButton(
             text=">",
+            callback_data=str(),
+        )
+
+        self.page_item_user = aiogram.types.InlineKeyboardButton(
+            text="{0} ({1})",
+            callback_data=str(),
+        )
+        self.page_item_subscription = aiogram.types.InlineKeyboardButton(
+            text="#{0} «{1}»",
+            callback_data=str(),
+        )
+        self.page_item_payment = aiogram.types.InlineKeyboardButton(
+            text="#{0} ({1})",
             callback_data=str(),
         )
 
@@ -215,4 +225,4 @@ class ButtonsContainer:
         # endregion
 
     def _get_amount_with_currency(self, amount: int) -> str:
-        return " ".join([str(amount), self._config.payments.currency])
+        return f"{amount} {self._config.payments.currency}"
