@@ -33,7 +33,39 @@ class PlansContainer(pyquoks.models.IContainer):
     _DATA = {
         "plans": Plan,
     }
-    plans: list[Plan]
+    plans: list[Plan] | None
+
+
+class Referrer(pyquoks.models.IModel):
+    _ATTRIBUTES = {
+        "tg_id",
+        "multiplier_common",
+        "multiplier_first",
+    }
+    tg_id: int | None
+    multiplier_common: float | None
+    multiplier_first: float | None
+
+
+class ReferrersContainer(pyquoks.models.IContainer):
+    _ATTRIBUTES = {
+        "multiplier_common",
+        "multiplier_first",
+    }
+    _OBJECTS = {
+        "referrers": Referrer,
+    }
+    multiplier_common: float | None
+    multiplier_first: float | None
+    referrers: list[Referrer] | None
+
+    def get_referrer_by_id(self, tg_id: int) -> Referrer | None:
+        return list(
+            filter(
+                lambda referrer: referrer.tg_id == tg_id,
+                self.referrers,
+            )
+        )[0]
 
 
 # endregion

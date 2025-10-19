@@ -52,11 +52,19 @@ class ButtonsContainer:
             callback_data="admin_settings",
         )
 
+        self.admin_user_balance_enter = aiogram.types.InlineKeyboardButton(
+            text="Изменить баланс",
+            callback_data="admin_user_balance_enter {0}",
+        )
+        self.admin_user_referral = aiogram.types.InlineKeyboardButton(
+            text="Реферал",
+            callback_data="admin_user {0}",
+        )
+
         self.admin_user = aiogram.types.InlineKeyboardButton(
             text="Пользователь",
             callback_data="admin_user {0}",
         )
-
         self.admin_subscription_expire = aiogram.types.InlineKeyboardButton(
             text="Завершить подписку",
             callback_data="admin_subscription_expire {0}",

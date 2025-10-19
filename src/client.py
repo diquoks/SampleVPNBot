@@ -672,8 +672,17 @@ class AiogramClient(aiogram.Dispatcher):
                                     tg_id=current_user_id,
                                 )
 
+                                referrer_user = self._database.users.get_user(
+                                    tg_id=current_user.referrer_id,
+                                ) if current_user.referrer_id else None
+
                                 current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
                                     tg_id=current_user_id,
+                                )
+
+                                admin_user_balance_enter_button = self._buttons.admin_user_balance_enter.model_copy()
+                                admin_user_balance_enter_button = admin_user_balance_enter_button.callback_data.format(
+                                    current_user.tg_id,
                                 )
 
                                 admin_subscriptions_button = self._buttons.admin_subscriptions.model_copy()
@@ -682,24 +691,38 @@ class AiogramClient(aiogram.Dispatcher):
                                 admin_payments_button = self._buttons.admin_payments.model_copy()
                                 admin_payments_button.callback_data = f"{admin_payments_button.callback_data} {current_user_id}"
 
-                                # TODO: меню для изменения баланса пользователя
+                                admin_user_referral_button = self._buttons.admin_user_referral.model_copy()
+                                admin_user_referral_button.callback_data = admin_user_referral_button.callback_data.format(
+                                    referrer_user.tg_id if referrer_user else str(),
+                                )
+
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                markup_builder.row(admin_user_balance_enter_button)
+                                markup_builder.row(admin_subscriptions_button)
                                 markup_builder.row(admin_subscriptions_button)
                                 markup_builder.row(admin_payments_button)
+                                if referrer_user:
+                                    markup_builder.row(admin_user_referral_button)
                                 markup_builder.row(self._buttons.back_to_admin)
 
                                 await self._bot.edit_message_text(
                                     chat_id=call.message.chat.id,
                                     message_id=call.message.message_id,
                                     text=(
-                                        f"Пользователь {current_user.tg_username} ({current_user.tg_id})\n"
-                                        f"\n"
-                                        f"Баланс: {self._get_amount_with_currency(current_user.balance)}\n"
-                                        f"Активных подписок: {len(current_subscriptions)}\n"
-                                        f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}"
-                                    ),
+                                             f"Пользователь {current_user.tg_username} ({current_user.tg_id})\n"
+                                             f"\n"
+                                             f"Баланс: {self._get_amount_with_currency(current_user.balance)}\n"
+                                             f"Активных подписок: {len(current_subscriptions)}\n"
+                                             f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
+                                         ) + (
+                                             (
+                                                 f"\n"
+                                                 f"Пригласил: {referrer_user.tg_username} ({referrer_user.tg_id})"
+                                             ) if referrer_user else str()
+                                         ),
                                     reply_markup=markup_builder.as_markup(),
                                 )
+                            # TODO: `case ["admin_user_balance_enter", current_user_id]`
                             # TODO: `case ["admin_configs", current_page_id]:` (DATABASE)
                             case ["admin_subscriptions", current_page_id, *current_user_id]:
                                 current_page_id = int(current_page_id)
@@ -912,20 +935,62 @@ class AiogramClient(aiogram.Dispatcher):
             interaction=self.success_add_funds_handler.__name__,
         )
 
-        successful_payment_date = datetime.datetime.now()
+        payment_amount = int(message.successful_payment.total_amount / self._config.payments.multiplier)
+        successful_payment_date = int(datetime.datetime.now().timestamp())
+
+        current_user = self._database.users.get_user(
+            tg_id=message.from_user.id,
+        )
+
+        referrer_user = self._database.users.get_user(
+            tg_id=current_user.referrer_id,
+        ) if current_user.referrer_id else None
+
+        is_first_payment = not self._database.payments.check_payments(
+            tg_id=message.from_user.id,
+        )
+
         self._database.payments.add_payment(
             tg_id=message.from_user.id,
-            payment_amount=int(message.successful_payment.total_amount / self._config.payments.multiplier),
+            payment_amount=payment_amount,
             payment_currency=message.successful_payment.currency,
             provider_payment_id=message.successful_payment.provider_payment_charge_id,
             payment_payload=message.successful_payment.invoice_payload,
-            payment_date=int(successful_payment_date.timestamp()),
+            payment_date=successful_payment_date,
         )
 
         self._database.users.add_balance(
             tg_id=message.from_user.id,
-            amount=int(message.successful_payment.total_amount / self._config.payments.multiplier)
+            amount=payment_amount
         )
+
+        if referrer_user:
+            referrer_model = self._data.referrers.get_referrer_by_id(
+                tg_id=referrer_user.tg_id,
+            )
+
+            if is_first_payment:
+                referrer_bonus = int(
+                    payment_amount * referrer_model.multiplier_first if referrer_model else self._data.referrers.multiplier_first
+                )
+            else:
+                referrer_bonus = int(
+                    payment_amount * referrer_model.multiplier_common if referrer_model else self._data.referrers.multiplier_common
+                )
+
+            self._database.payments.add_payment(
+                tg_id=referrer_user.tg_id,
+                payment_amount=referrer_bonus,
+                payment_currency=self._config.payments.currency,
+                provider_payment_id=None,
+                payment_payload=f"referral {current_user.tg_id} {payment_amount} ({is_first_payment=})",
+                payment_date=successful_payment_date,
+            )
+
+            self._database.users.add_balance(
+                tg_id=referrer_user.tg_id,
+                amount=referrer_bonus,
+            )
 
         try:
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
@@ -935,7 +1000,7 @@ class AiogramClient(aiogram.Dispatcher):
             await self._bot.send_message(
                 chat_id=message.chat.id,
                 message_thread_id=self._get_message_thread_id(message),
-                text=f"Баланс пополнен на {self._get_amount_with_currency(int(message.successful_payment.total_amount / self._config.payments.multiplier))}!",
+                text=f"Баланс пополнен на {self._get_amount_with_currency(payment_amount)}!",
                 reply_markup=markup_builder.as_markup(),
             )
         except aiogram.exceptions.TelegramForbiddenError as e:

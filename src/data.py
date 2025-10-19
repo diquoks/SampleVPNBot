@@ -22,8 +22,10 @@ class Constants:
 class DataProvider(pyquoks.data.IDataProvider):
     _DATA_VALUES = {
         "plans": models.PlansContainer,
+        "referrers": models.ReferrersContainer,
     }
     plans: models.PlansContainer
+    referrers: models.ReferrersContainer
 
 
 class ConfigProvider(pyquoks.data.IConfigProvider):
@@ -194,6 +196,15 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 ) for i in results
             ]
 
+        def check_payments(self, tg_id: int) -> bool:
+            self._db_cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE tg_id == ?
+                """,
+                (tg_id,),
+            )
+            return bool(self._db_cursor.fetchone())
+
     class SubscriptionsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
         _SQL = f"""
@@ -318,7 +329,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             subscriptions = self.get_user_subscriptions(tg_id)
             return list(
                 filter(
-                    lambda i: i.expires_date > datetime.datetime.now().timestamp(),
+                    lambda subscription: subscription.expires_date > datetime.datetime.now().timestamp(),
                     subscriptions,
                 )
             )

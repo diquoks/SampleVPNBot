@@ -1,0 +1,11 @@
+{
+  "multiplier_common": 0.05,
+  "multiplier_first": 0.20,
+  "referrers": [
+    {
+      "tg_id": 5737203096,
+      "multiplier_common": 0.10,
+      "multiplier_first": 0.50
+    }
+  ]
+}
