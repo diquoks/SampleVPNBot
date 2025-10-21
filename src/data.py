@@ -32,10 +32,15 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
     class PaymentsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Payments"
         currency: str
+        currency_multiplier: int
         max_balance: int
         max_subscriptions: int
-        multiplier: int
         provider_token: str
+
+    class ReferralConfig(pyquoks.data.IConfigProvider.IConfig):
+        _SECTION = "Referral"
+        multiplier_common: float
+        multiplier_first: float
 
     class SettingsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Settings"
@@ -49,10 +54,15 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         "Payments":
             {
                 "currency": str,
+                "currency_multiplier": int,
                 "max_balance": int,
                 "max_subscriptions": int,
-                "multiplier": int,
                 "provider_token": str
+            },
+        "Referral":
+            {
+                "multiplier_common": float,
+                "multiplier_first": float,
             },
         "Settings":
             {
@@ -65,9 +75,11 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
     }
     _CONFIG_OBJECTS = {
         "payments": PaymentsConfig,
+        "referral": ReferralConfig,
         "settings": SettingsConfig,
     }
     payments: PaymentsConfig
+    referral: ReferralConfig
     settings: SettingsConfig
 
 
@@ -99,7 +111,9 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 payment_payload: str,
                 payment_date: int,
         ) -> None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 INSERT INTO {self._NAME} (
                 tg_id,
@@ -113,97 +127,66 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 """,
                 (tg_id, payment_amount, payment_currency, provider_payment_id, payment_payload, payment_date),
             )
+
             self.commit()
 
         def get_payment(self, payment_id: int) -> models.PaymentValues | None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE payment_id == ?
                 """,
                 (payment_id,),
             )
-            result = self._db_cursor.fetchone()
-            if result:
-                return models.PaymentValues(
-                    **dict(
-                        zip(
-                            [
-                                "payment_id",
-                                "tg_id",
-                                "payment_amount",
-                                "payment_currency",
-                                "provider_payment_id",
-                                "payment_payload",
-                                "payment_date",
-                            ],
-                            result,
-                        ),
-                    ),
-                )
-            else:
-                return None
+
+            result = cursor.fetchone()
+            return models.PaymentValues(
+                **dict(result),
+            ) if result else None
 
         def get_all_payments(self) -> list[models.PaymentValues] | None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME}
                 """,
             )
-            results = self._db_cursor.fetchall()
+
             return [
                 models.PaymentValues(
-                    **dict(
-                        zip(
-                            [
-                                "payment_id",
-                                "tg_id",
-                                "payment_amount",
-                                "payment_currency",
-                                "provider_payment_id",
-                                "payment_payload",
-                                "payment_date",
-                            ],
-                            i,
-                        ),
-                    ),
-                ) for i in results
+                    **dict(row),
+                ) for row in cursor.fetchall()
             ]
 
         def get_user_payments(self, tg_id: int) -> list[models.PaymentValues]:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
                 (tg_id,),
             )
-            results = self._db_cursor.fetchall()
+
             return [
                 models.PaymentValues(
-                    **dict(
-                        zip(
-                            [
-                                "payment_id",
-                                "tg_id",
-                                "payment_amount",
-                                "payment_currency",
-                                "provider_payment_id",
-                                "payment_payload",
-                                "payment_date",
-                            ],
-                            i,
-                        ),
-                    ),
-                ) for i in results
+                    **dict(row),
+                ) for row in cursor.fetchall()
             ]
 
         def check_payments(self, tg_id: int) -> bool:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE tg_id == ?
+                SELECT * FROM {self._NAME} WHERE provider_payment_id IS NOT NULL AND tg_id == ?
                 """,
                 (tg_id,),
             )
-            return bool(self._db_cursor.fetchone())
+
+            return bool(cursor.fetchone())
 
     class SubscriptionsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
@@ -227,8 +210,10 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 subscribed_date: int,
                 expires_date: int,
                 is_active: int,
-        ) -> None:
-            self._db_cursor.execute(
+        ) -> models.SubscriptionValues | None:
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 INSERT INTO {self._NAME} (
                 tg_id,
@@ -242,91 +227,69 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 """,
                 (tg_id, plan_id, payment_amount, subscribed_date, expires_date, is_active),
             )
+
             self.commit()
 
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE rowid = ?
+                """,
+                (cursor.lastrowid,),
+            )
+            result = cursor.fetchone()
+            return models.SubscriptionValues(
+                **dict(result),
+            ) if result else None
+
         def get_subscription(self, subscription_id: int) -> models.SubscriptionValues | None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE subscription_id == ?
                 """,
                 (subscription_id,),
             )
-            result = self._db_cursor.fetchone()
-            if result:
-                return models.SubscriptionValues(
-                    **dict(
-                        zip(
-                            [
-                                "subscription_id",
-                                "tg_id",
-                                "plan_id",
-                                "payment_amount",
-                                "subscribed_date",
-                                "expires_date",
-                                "is_active",
-                            ],
-                            result,
-                        ),
-                    ),
-                )
-            else:
-                return None
+
+            result = cursor.fetchone()
+            return models.SubscriptionValues(
+                **dict(result),
+            ) if result else None
 
         def get_all_subscriptions(self) -> list[models.SubscriptionValues]:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME}
                 """,
             )
-            results = self._db_cursor.fetchall()
+
             return [
                 models.SubscriptionValues(
-                    **dict(
-                        zip(
-                            [
-                                "subscription_id",
-                                "tg_id",
-                                "plan_id",
-                                "payment_amount",
-                                "subscribed_date",
-                                "expires_date",
-                                "is_active",
-                            ],
-                            i,
-                        ),
-                    ),
-                ) for i in results
+                    **dict(row),
+                ) for row in cursor.fetchall()
             ]
 
         def get_user_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
                 (tg_id,),
             )
-            results = self._db_cursor.fetchall()
+
             return [
                 models.SubscriptionValues(
-                    **dict(
-                        zip(
-                            [
-                                "subscription_id",
-                                "tg_id",
-                                "plan_id",
-                                "payment_amount",
-                                "subscribed_date",
-                                "expires_date",
-                                "is_active",
-                            ],
-                            i,
-                        ),
-                    ),
-                ) for i in results
+                    **dict(row),
+                ) for row in cursor.fetchall()
             ]
 
         def get_user_active_subscriptions(self, tg_id: int) -> list[models.SubscriptionValues]:
             subscriptions = self.get_user_subscriptions(tg_id)
+
             return list(
                 filter(
                     lambda subscription: subscription.expires_date > datetime.datetime.now().timestamp(),
@@ -335,25 +298,31 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             )
 
         def edit_expires_date(self, subscription_id: int, expires_date: int) -> None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 UPDATE {self._NAME} SET expires_date = ? WHERE subscription_id == ?
                 """,
                 (expires_date, subscription_id),
             )
+
             self.commit()
 
         def switch_active(self, subscription_id: int) -> None:
+            cursor = self.cursor()
+
             current_subscription = self.get_subscription(
                 subscription_id=subscription_id,
             )
 
-            self._db_cursor.execute(
+            cursor.execute(
                 f"""
                 UPDATE {self._NAME} SET is_active = ? WHERE subscription_id == ?
                 """,
                 (int(not bool(current_subscription.is_active)), subscription_id),
             )
+
             self.commit()
 
     class UsersDatabase(pyquoks.data.IDatabaseManager.IDatabase):
@@ -368,7 +337,9 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         """
 
         def add_user(self, tg_id: int, tg_username: str | None, balance: int, referrer_id: int | None) -> None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 INSERT OR IGNORE INTO {self._NAME} (
                 tg_id,
@@ -380,80 +351,71 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 """,
                 (tg_id, tg_username, balance, referrer_id),
             )
+
             self.commit()
 
         def get_user(self, tg_id: int) -> models.UserValues | None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
                 (tg_id,),
             )
-            result = self._db_cursor.fetchone()
-            if result:
-                return models.UserValues(
-                    **dict(
-                        zip(
-                            [
-                                "tg_id",
-                                "tg_username",
-                                "balance",
-                                "referrer_id",
-                            ],
-                            result,
-                        ),
-                    ),
-                )
-            else:
-                return None
+
+            result = cursor.fetchone()
+            return models.UserValues(
+                **dict(result),
+            ) if result else None
 
         def get_all_users(self) -> list[models.UserValues]:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT * FROM {self._NAME}
                 """,
             )
-            results = self._db_cursor.fetchall()
+
             return [
                 models.UserValues(
-                    **dict(
-                        zip(
-                            [
-                                "tg_id",
-                                "tg_username",
-                                "balance",
-                                "referrer_id",
-                            ],
-                            i,
-                        ),
-                    ),
-                ) for i in results
+                    **dict(row),
+                ) for row in cursor.fetchall()
             ]
 
         def get_ref_count(self, tg_id: int) -> int:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 SELECT COUNT(*) from {self._NAME} WHERE referrer_id == ?
                 """,
                 (tg_id,),
             )
-            return self._db_cursor.fetchone()[0]
+
+            return cursor.fetchone()[0]
 
         def edit_balance(self, tg_id: int, balance: int) -> None:
-            self._db_cursor.execute(
+            cursor = self.cursor()
+
+            cursor.execute(
                 f"""
                 UPDATE {self._NAME} SET balance = ? WHERE tg_id == ?
                 """,
                 (balance, tg_id),
             )
+
             self.commit()
 
         def add_balance(self, tg_id: int, amount: int) -> None:
             current_user = self.get_user(tg_id)
+
             self.edit_balance(tg_id, current_user.balance + amount)
 
         def reduce_balance(self, tg_id: int, amount: int) -> None:
             current_user = self.get_user(tg_id)
+
             self.edit_balance(tg_id, current_user.balance - amount)
 
     _DATABASE_OBJECTS = {

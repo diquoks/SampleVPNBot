@@ -48,24 +48,21 @@ class Referrer(pyquoks.models.IModel):
 
 
 class ReferrersContainer(pyquoks.models.IContainer):
-    _ATTRIBUTES = {
-        "multiplier_common",
-        "multiplier_first",
-    }
-    _OBJECTS = {
+    _DATA = {
         "referrers": Referrer,
     }
-    multiplier_common: float | None
-    multiplier_first: float | None
     referrers: list[Referrer] | None
 
     def get_referrer_by_id(self, tg_id: int) -> Referrer | None:
-        return list(
-            filter(
-                lambda referrer: referrer.tg_id == tg_id,
-                self.referrers,
-            )
-        )[0]
+        try:
+            return list(
+                filter(
+                    lambda referrer: referrer.tg_id == tg_id,
+                    self.referrers,
+                )
+            )[0]
+        except IndexError:
+            return None
 
 
 # endregion

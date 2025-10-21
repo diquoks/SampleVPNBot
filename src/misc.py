@@ -11,11 +11,18 @@ class ButtonsContainer:
         # region /start
 
         self.plans = aiogram.types.InlineKeyboardButton(
-            text="Тарифы",
+            text="Тарифные планы",
             callback_data="plans",
         )
+        self.add_funds = aiogram.types.InlineKeyboardButton(
+            text="Пополнить баланс",
+            callback_data="add_funds",
+        )
+        self.invite = aiogram.types.InlineKeyboardButton(
+            text="Пригласить друга",
+        )
         self.subscriptions = aiogram.types.InlineKeyboardButton(
-            text="Подписки",
+            text="Мои подписки",
             callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
         )
         self.profile = aiogram.types.InlineKeyboardButton(
@@ -74,6 +81,10 @@ class ButtonsContainer:
 
         # region plans
 
+        self.plan_add_funds = aiogram.types.InlineKeyboardButton(
+            text="Пополнить на {0}",
+            callback_data="add_funds {0}",
+        )
         self._plan = aiogram.types.InlineKeyboardButton(
             text=str(),
             callback_data="plan {0}",
@@ -103,14 +114,41 @@ class ButtonsContainer:
 
         # endregion
 
+        # region add_funds
+
+        self.add_funds_enter = aiogram.types.InlineKeyboardButton(
+            text="Ввести сумму",
+            callback_data="add_funds_enter",
+        )
+        self._add_funds = aiogram.types.InlineKeyboardButton(
+            text=str(),
+            callback_data="add_funds {0}",
+        )
+        # add_funds_*
+        for plan_type in models.PlansType:
+            plan = self._data.plans.plans[plan_type.value]
+            amount = plan.price * plan.months
+
+            button = self._add_funds.model_copy()
+            button.text = self._get_amount_with_currency(amount)
+            button.callback_data = button.callback_data.format(amount)
+
+            setattr(self, f"add_funds_{plan_type.value}", button)
+
+        # endregion
+
         # region subscriptions
-        self.subscription_config = aiogram.types.InlineKeyboardButton(
+        self.subscription_config_data = aiogram.types.InlineKeyboardButton(
+            text="Данные для подключения",
+            callback_data="subscription_config_file {0}",
+        )
+        self.subscription_config_file = aiogram.types.InlineKeyboardButton(
             text="Файл конфигурации",
-            callback_data="subscription_config {0}",
+            callback_data="subscription_config_file {0}",
         )
         self.subscription_config_copy = aiogram.types.InlineKeyboardButton(
-            text="Настройки для подключения",
-            callback_data="subscription_config_copy",
+            text="Ключ для подключения",
+            callback_data="subscription_config_copy {0}",
         )
         self.subscription_config_download = aiogram.types.InlineKeyboardButton(
             text="Скачать AmneziaVPN",
@@ -123,35 +161,6 @@ class ButtonsContainer:
 
         # endregion
 
-        # region profile
-
-        self.profile_invite = aiogram.types.InlineKeyboardButton(
-            text="Поделиться",
-        )
-        self.add_funds = aiogram.types.InlineKeyboardButton(
-            text="Пополнить баланс",
-            callback_data="add_funds",
-        )
-        self.add_funds_enter = aiogram.types.InlineKeyboardButton(
-            text="Ввести сумму",
-            callback_data="add_funds_enter",
-        )
-        self._add_funds = aiogram.types.InlineKeyboardButton(
-            text=str(),
-            callback_data="add_funds {0}",
-        )
-        # add_funds_*
-        for plan_type in models.PlansType:
-            plan = self._data.plans.plans[plan_type.value]
-
-            button = self._add_funds.model_copy()
-            button.text = self._get_amount_with_currency(plan.price * plan.months)
-            button.callback_data = button.callback_data.format(plan_type.value)
-
-            setattr(self, f"add_funds_{plan_type.value}", button)
-
-        # endregion
-
         # region page
 
         self.page_previous = aiogram.types.InlineKeyboardButton(
@@ -159,7 +168,7 @@ class ButtonsContainer:
             callback_data=str(),
         )
         self.page_info = aiogram.types.InlineKeyboardButton(
-            text="{0} / {1}",
+            text="{0} / {1} ({2})",
             callback_data=str(),
         )
         self.page_next = aiogram.types.InlineKeyboardButton(
@@ -192,13 +201,13 @@ class ButtonsContainer:
             text="Назад",
             callback_data="plans",
         )
+        self.back_to_plan = aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data="plan {0}",
+        )
         self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(
             text="Назад",
             callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
-        )
-        self.back_to_profile = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data="profile",
         )
         self.back_to_add_funds = aiogram.types.InlineKeyboardButton(
             text="Отмена",
@@ -207,6 +216,11 @@ class ButtonsContainer:
         self.back_to_admin = aiogram.types.InlineKeyboardButton(
             text="Назад",
             callback_data="admin",
+        )
+
+        self.delete_to_start = aiogram.types.InlineKeyboardButton(
+            text="Главное меню",
+            callback_data="delete_to_start",
         )
 
         # endregion
@@ -218,16 +232,8 @@ class ButtonsContainer:
             callback_data="start",
         )
         self.view_plans = aiogram.types.InlineKeyboardButton(
-            text="Посмотреть тарифы",
+            text="Перейти к тарифам",
             callback_data="plans",
-        )
-        self.view_profile = aiogram.types.InlineKeyboardButton(
-            text=str(),
-            callback_data="profile",
-        )
-        self.view_add_funds = aiogram.types.InlineKeyboardButton(
-            text="Пополнить баланс",
-            callback_data="add_funds",
         )
 
         # endregion
