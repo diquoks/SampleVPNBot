@@ -1,5 +1,5 @@
 from __future__ import annotations
-import enum
+import datetime, enum
 import pyquoks.models
 
 
@@ -27,6 +27,10 @@ class Plan(pyquoks.models.IModel):
     months: int | None
     name: str | None
     price: int | None
+
+    @property
+    def cost(self) -> int:
+        return self.price * self.months
 
 
 class PlansContainer(pyquoks.models.IContainer):
@@ -105,6 +109,10 @@ class SubscriptionValues(pyquoks.models.IValues):
     subscribed_date: int | None
     expires_date: int | None
     is_active: int | None
+
+    @property
+    def status(self) -> str:
+        return "Истекла" if datetime.datetime.now().timestamp() > self.expires_date else "Активна" if self.is_active else "Отменена"
 
 
 class UserValues(pyquoks.models.IValues):

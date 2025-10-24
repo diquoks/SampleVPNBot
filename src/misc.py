@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 import aiogram
 import models, data
 
@@ -107,7 +108,7 @@ class ButtonsContainer:
             plan = self._data.plans.plans[plan_type.value]
 
             button = self._plan_subscribe.model_copy()
-            button.text = button.text.format(self._get_amount_with_currency(plan.price * plan.months))
+            button.text = button.text.format(self._config.payments.get_amount_with_currency(plan.price * plan.months))
             button.callback_data = button.callback_data.format(plan_type.value)
 
             setattr(self, f"plan_subscribe_{plan_type.value}", button)
@@ -130,7 +131,7 @@ class ButtonsContainer:
             amount = plan.price * plan.months
 
             button = self._add_funds.model_copy()
-            button.text = self._get_amount_with_currency(amount)
+            button.text = self._config.payments.get_amount_with_currency(amount)
             button.callback_data = button.callback_data.format(amount)
 
             setattr(self, f"add_funds_{plan_type.value}", button)
@@ -168,7 +169,7 @@ class ButtonsContainer:
             callback_data=str(),
         )
         self.page_info = aiogram.types.InlineKeyboardButton(
-            text="{0} / {1} ({2})",
+            text="{0} / {1}",
             callback_data=str(),
         )
         self.page_next = aiogram.types.InlineKeyboardButton(
@@ -238,5 +239,44 @@ class ButtonsContainer:
 
         # endregion
 
-    def _get_amount_with_currency(self, amount: int) -> str:
-        return f"{amount} {self._config.payments.currency}"
+    def _get_page_buttons(
+            self,
+            page: str,
+            page_items: list,
+            current_page_id: int,
+            current_user_id: int | None = None,
+    ) -> tuple[
+        aiogram.types.InlineKeyboardButton,
+        aiogram.types.InlineKeyboardButton,
+        aiogram.types.InlineKeyboardButton,
+    ]:
+        previous_page_id = current_page_id - 1
+        next_page_id = current_page_number = current_page_id + 1
+        total_pages_count = math.ceil(len(page_items) / data.Constants.ELEMENTS_PER_PAGE)
+
+        page_previous_button = self.page_previous.model_copy()
+        page_previous_button.callback_data = " ".join(i for i in [
+            page,
+            str(previous_page_id),
+            str(current_user_id) if current_user_id else str(),
+        ] if i) if previous_page_id >= data.Constants.FIRST_PAGE_ID else "just_answer"
+
+        page_info_button = self.page_info.model_copy()
+        page_info_button.text = page_info_button.text.format(
+            current_page_number,
+            total_pages_count,
+        )
+        page_info_button.callback_data = " ".join(i for i in [
+            page,
+            str(data.Constants.FIRST_PAGE_ID),
+            str(current_user_id) if current_user_id else str(),
+        ] if i) if current_page_id != data.Constants.FIRST_PAGE_ID else "just_answer"
+
+        page_next_button = self.page_next.model_copy()
+        page_next_button.callback_data = " ".join(i for i in [
+            page,
+            str(next_page_id),
+            str(current_user_id) if current_user_id else str(),
+        ] if i) if next_page_id < total_pages_count else "just_answer"
+
+        return page_previous_button, page_info_button, page_next_button

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import itertools, datetime, logging, math
+import itertools, datetime, logging
 import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.utils.keyboard, \
     aiogram.fsm.context, aiogram.fsm.state
 import models, data, misc
@@ -50,9 +50,11 @@ class AiogramClient(aiogram.Dispatcher):
 
     # region Properties and helpers
 
+    # noinspection PyTypeHints
     @property
     async def clean_username(self) -> str:
-        return (await self.user).username[:-3]
+        bot = await self.user
+        return bot.username[:-3] if bot.username else None
 
     @property
     async def user(self) -> aiogram.types.User:
@@ -69,6 +71,19 @@ class AiogramClient(aiogram.Dispatcher):
         else:
             return None
 
+    def _get_max_balance(
+            self,
+            user: models.UserValues,
+    ) -> int:
+        current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
+            tg_id=user.tg_id,
+        )
+
+        return max(
+            self._config.payments.max_balance,
+            sum([self._data.plans.plans[subscription.plan_id].cost for subscription in current_subscriptions])
+        )
+
     def _get_referrer_id(self, user_id: int, args: str | None) -> int | None:
         try:
             referrer_id = int(args)
@@ -81,52 +96,6 @@ class AiogramClient(aiogram.Dispatcher):
         except:
             return None
 
-    def _get_amount_with_currency(self, amount: int) -> str:
-        return f"{amount} {self._config.payments.currency}"
-
-    def _get_page_buttons(
-            self,
-            page: str,
-            page_items: list,
-            current_page_id: int,
-            current_user_id: int | None = None,
-    ) -> tuple[
-        aiogram.types.InlineKeyboardButton,
-        aiogram.types.InlineKeyboardButton,
-        aiogram.types.InlineKeyboardButton,
-    ]:
-        previous_page_id = current_page_id - 1
-        next_page_id = current_page_number = current_page_id + 1
-        total_pages_count = math.ceil(len(page_items) / data.Constants.ELEMENTS_PER_PAGE)
-
-        page_previous_button = self._buttons.page_previous.model_copy()
-        page_previous_button.callback_data = " ".join(i for i in [
-            page,
-            str(previous_page_id),
-            str(current_user_id) if current_user_id else None,
-        ] if i) if previous_page_id >= data.Constants.FIRST_PAGE_ID else "just_answer"
-
-        page_info_button = self._buttons.page_info.model_copy()
-        page_info_button.text = page_info_button.text.format(
-            current_page_number,
-            total_pages_count,
-            len(page_items),
-        )
-        page_info_button.callback_data = " ".join(i for i in [
-            page,
-            str(data.Constants.FIRST_PAGE_ID),
-            str(current_user_id) if current_user_id else None,
-        ] if i) if current_page_id != data.Constants.FIRST_PAGE_ID else "just_answer"
-
-        page_next_button = self._buttons.page_next.model_copy()
-        page_next_button.callback_data = " ".join(i for i in [
-            page,
-            str(next_page_id),
-            str(current_user_id) if current_user_id else None,
-        ] if i) if next_page_id < total_pages_count else "just_answer"
-
-        return page_previous_button, page_info_button, page_next_button
-
     async def polling_coroutine(self) -> None:
         try:
             await self._bot.delete_webhook(drop_pending_updates=self._config.settings.skip_updates)
@@ -135,9 +104,9 @@ class AiogramClient(aiogram.Dispatcher):
             self._logger.log_exception(e)
 
     async def subscription_config_file(self, call: aiogram.types.CallbackQuery, subscription_id: int) -> None:
-        current_subscription = self._database.subscriptions.get_subscription(
-            subscription_id=subscription_id,
-        )
+        # current_subscription = self._database.subscriptions.get_subscription(
+        #     subscription_id=subscription_id,
+        # )
 
         config_key = str(None)  # TODO: выдача ключа (DATABASE)
 
@@ -172,9 +141,9 @@ class AiogramClient(aiogram.Dispatcher):
             )
 
     async def subscription_config_copy(self, call: aiogram.types.CallbackQuery, subscription_id: int) -> None:
-        current_subscription = self._database.subscriptions.get_subscription(
-            subscription_id=subscription_id,
-        )
+        # current_subscription = self._database.subscriptions.get_subscription(
+        #     subscription_id=subscription_id,
+        # )
 
         config_key = str(None)  # TODO: выдача ключа (DATABASE)
 
@@ -244,7 +213,7 @@ class AiogramClient(aiogram.Dispatcher):
             message_thread_id=self._get_message_thread_id(message),
             prices=[
                 aiogram.types.LabeledPrice(
-                    label=f"Счёт на сумму {self._get_amount_with_currency(amount)}",
+                    label=f"Счёт на сумму {self._config.payments.get_amount_with_currency(amount)}",
                     amount=amount * self._config.payments.currency_multiplier,
                 ),
             ],
@@ -252,7 +221,7 @@ class AiogramClient(aiogram.Dispatcher):
             provider_token=self._config.payments.provider_token,
             payload=f"{self.add_funds_invoice.__name__} {amount}",
             title="Пополнение баланса",
-            description=f"Счёт на сумму {self._get_amount_with_currency(amount)}",
+            description=f"Счёт на сумму {self._config.payments.get_amount_with_currency(amount)}",
         )
 
     # endregion
@@ -338,14 +307,14 @@ class AiogramClient(aiogram.Dispatcher):
             )
 
     async def callback_handler(self, call: aiogram.types.CallbackQuery, state: aiogram.fsm.context.FSMContext) -> None:
-        current_state = await state.get_state()
-        if current_state:
-            await state.clear()
-
         self._logger.log_user_interaction(
             user=call.from_user,
             interaction=call.data,
         )
+
+        current_state = await state.get_state()
+        if current_state:
+            await state.clear()
 
         self._database.users.add_user(
             tg_id=call.from_user.id,
@@ -384,7 +353,9 @@ class AiogramClient(aiogram.Dispatcher):
                         reply_markup=markup_builder.as_markup(),
                     )
                 case ["plans"]:
-                    plan_buttons = [getattr(self._buttons, f"plan_{plan_type.value}") for plan_type in models.PlansType]
+                    plan_buttons = [
+                        getattr(self._buttons, f"plan_{plan_type.value}") for plan_type in models.PlansType
+                    ]
 
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     for buttons_row in itertools.batched(
@@ -448,7 +419,7 @@ class AiogramClient(aiogram.Dispatcher):
                             button.callback_data = f"subscription {subscription.subscription_id}"
                             markup_builder.row(button)
                         markup_builder.row(
-                            *self._get_page_buttons(
+                            *self._buttons._get_page_buttons(
                                 page="subscriptions",
                                 page_items=current_subscriptions,
                                 current_page_id=current_page_id,
@@ -474,8 +445,10 @@ class AiogramClient(aiogram.Dispatcher):
                         tg_id=current_user.referrer_id,
                     ) if current_user.referrer_id else None
 
-                    current_referrer_model = self._data.referrers.get_referrer_by_id(
-                        tg_id=current_user.tg_id,
+                    current_referrer_model = self._config.referral.get_referrer_model(
+                        referrer=self._data.referrers.get_referrer_by_id(
+                            tg_id=current_user.tg_id,
+                        ),
                     )
 
                     current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
@@ -491,14 +464,14 @@ class AiogramClient(aiogram.Dispatcher):
                         text=(
                                  f"Профиль {call.from_user.full_name}:\n"
                                  f"\n"
-                                 f"<b>Баланс: {self._get_amount_with_currency(current_user.balance)}</b>\n"
+                                 f"<b>Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}</b>\n"
                                  f"Активных подписок: {len(current_subscriptions)}\n"
                                  f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
                              ) + (
                                  f"\n"
                                  f"<b>Реферальные выплаты:</b>\n"
-                                 f"Первое пополнение: <b>{(current_referrer_model.multiplier_first if current_referrer_model else self._config.referral.multiplier_first):.0%}</b>\n"
-                                 f"Следующие пополнения: <b>{(current_referrer_model.multiplier_common if current_referrer_model else self._config.referral.multiplier_common):.0%}</b>\n"
+                                 f"Первое пополнение: <b>{current_referrer_model.multiplier_first:.0%}</b>\n"
+                                 f"Следующие пополнения: <b>{current_referrer_model.multiplier_common:.0%}</b>\n"
                              ) + (
                                  (
                                      f"\n"
@@ -527,25 +500,24 @@ class AiogramClient(aiogram.Dispatcher):
                             f"\n"
                             f"Период подписки: {current_plan.months * data.Constants.DAYS_IN_MONTH} дней\n"
                             f"\n"
-                            f"<b>(Текущий баланс: {self._get_amount_with_currency(current_user.balance)})</b>\n"
+                            f"<b>(Текущий баланс: {self._config.payments.get_amount_with_currency(current_user.balance)})</b>\n"
                         ),
                         reply_markup=markup_builder.as_markup(),
                     )
                 case ["plan_subscribe", current_plan_id]:
                     current_plan_id = int(current_plan_id)
                     current_plan = self._data.plans.plans[current_plan_id]
-                    current_plan_price = current_plan.price * current_plan.months
 
-                    if current_plan_price <= current_user.balance:
+                    if current_plan.cost <= current_user.balance:
                         self._database.users.reduce_balance(
                             tg_id=call.from_user.id,
-                            amount=current_plan_price,
+                            amount=current_plan.cost,
                         )
                         datetime_subscribed = datetime.datetime.now()
 
                         self._database.payments.add_payment(
                             tg_id=call.from_user.id,
-                            payment_amount=-current_plan_price,
+                            payment_amount=-current_plan.cost,
                             payment_currency=self._config.payments.currency,
                             provider_payment_id=None,
                             payment_payload=call.data,
@@ -555,7 +527,7 @@ class AiogramClient(aiogram.Dispatcher):
                         current_subscription = self._database.subscriptions.add_subscription(
                             tg_id=call.from_user.id,
                             plan_id=current_plan_id,
-                            payment_amount=current_plan_price,
+                            payment_amount=current_plan.cost,
                             subscribed_date=int(datetime_subscribed.timestamp()),
                             expires_date=int(
                                 (datetime_subscribed + datetime.timedelta(
@@ -570,11 +542,11 @@ class AiogramClient(aiogram.Dispatcher):
                             subscription_id=current_subscription.subscription_id,
                         )
                     else:
-                        amount_diff = current_plan_price - current_user.balance
+                        amount_diff = current_plan.cost - current_user.balance
 
                         plan_add_funds_button = self._buttons.plan_add_funds.model_copy()
                         plan_add_funds_button.text = plan_add_funds_button.text.format(
-                            self._get_amount_with_currency(amount_diff),
+                            self._config.payments.get_amount_with_currency(amount_diff),
                         )
                         plan_add_funds_button.callback_data = plan_add_funds_button.callback_data.format(
                             amount_diff,
@@ -593,13 +565,13 @@ class AiogramClient(aiogram.Dispatcher):
                             chat_id=call.message.chat.id,
                             message_id=call.message.message_id,
                             text=(
-                                f"Пополните баланс на {self._get_amount_with_currency(amount=amount_diff)}\n"
+                                f"Пополните баланс на {self._config.payments.get_amount_with_currency(amount=amount_diff)}\n"
                                 f"для подписки на «{current_plan.name}»!\n"
                             ),
                             reply_markup=markup_builder.as_markup(),
                         )
                 case ["add_funds_enter"]:
-                    if current_user.balance + self._minimum_plan.price * self._minimum_plan.months < self._config.payments.max_balance:
+                    if current_user.balance + self._minimum_plan.cost < self._get_max_balance(user=current_user):
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                         markup_builder.row(self._buttons.back_to_add_funds)
 
@@ -609,7 +581,7 @@ class AiogramClient(aiogram.Dispatcher):
                             text=(
                                 f"Введите сумму, на которую\n"
                                 f"хотите пополнить баланс\n"
-                                f"<b>(число от {self._minimum_plan.price * self._minimum_plan.months} до {self._config.payments.max_balance - current_user.balance}):</b>\n"
+                                f"<b>(число от {self._minimum_plan.cost} до {self._get_max_balance(user=current_user) - current_user.balance}):</b>\n"
                             ),
                             reply_markup=markup_builder.as_markup(),
                         )
@@ -623,7 +595,7 @@ class AiogramClient(aiogram.Dispatcher):
                 case ["add_funds", amount]:
                     amount = int(amount)
 
-                    if current_user.balance + amount < self._config.payments.max_balance:
+                    if current_user.balance + amount < self._get_max_balance(user=current_user):
                         try:
                             await self._bot.delete_message(
                                 chat_id=call.message.chat.id,
@@ -638,7 +610,7 @@ class AiogramClient(aiogram.Dispatcher):
                     else:
                         await self._bot.answer_callback_query(
                             callback_query_id=call.id,
-                            text=f"Сумма пополнения превышает максимальную ({self._get_amount_with_currency(self._config.payments.max_balance - current_user.balance)})!",
+                            text=f"Сумма пополнения превышает максимальную ({self._config.payments.get_amount_with_currency(self._get_max_balance(user=current_user) - current_user.balance)})!",
                             show_alert=True,
                         )
                 case ["subscription" | "subscription_switch_active", current_subscription_id]:
@@ -659,9 +631,7 @@ class AiogramClient(aiogram.Dispatcher):
                     )
 
                     subscription_switch_active_button = self._buttons.subscription_switch_active.model_copy()
-                    subscription_switch_active_button.text = "Отключить автопродление" if bool(
-                        current_subscription.is_active
-                    ) else "Подключить автопродление"
+                    subscription_switch_active_button.text = "Отключить автопродление" if current_subscription.is_active else "Подключить автопродление"
                     subscription_switch_active_button.callback_data = subscription_switch_active_button.callback_data.format(
                         current_subscription_id,
                     )
@@ -678,7 +648,7 @@ class AiogramClient(aiogram.Dispatcher):
                             f"<b>Подписка #{current_subscription.subscription_id}</b>\n"
                             f"Тариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n"
                             f"\n"
-                            f"<b>Статус: {"Активна" if bool(current_subscription.is_active) else "Отменена"}</b>\n"
+                            f"<b>Статус: {current_subscription.status}</b>\n"
                             f"Подключена: {datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}\n"
                             f"Истекает: {datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}\n"
                         ),
@@ -729,7 +699,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         button.callback_data = f"admin_user {user.tg_id}"
                                         markup_builder.row(button)
                                     markup_builder.row(
-                                        *self._get_page_buttons(
+                                        *self._buttons._get_page_buttons(
                                             page="admin_users",
                                             page_items=current_users,
                                             current_page_id=current_page_id,
@@ -740,7 +710,10 @@ class AiogramClient(aiogram.Dispatcher):
                                     await self._bot.edit_message_text(
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
-                                        text="Выберите пользователя:",
+                                        text=(
+                                            f"Выберите пользователя:\n"
+                                            f"(Всего: {len(current_users)})\n"
+                                        ),
                                         reply_markup=markup_builder.as_markup(),
                                     )
                             case ["admin_user", current_user_id]:
@@ -754,8 +727,10 @@ class AiogramClient(aiogram.Dispatcher):
                                     tg_id=current_user.referrer_id,
                                 ) if current_user.referrer_id else None
 
-                                current_referrer_model = self._data.referrers.get_referrer_by_id(
-                                    tg_id=current_user.tg_id,
+                                current_referrer_model = self._config.referral.get_referrer_model(
+                                    referrer=self._data.referrers.get_referrer_by_id(
+                                        tg_id=current_user.tg_id,
+                                    ),
                                 )
 
                                 current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
@@ -792,14 +767,14 @@ class AiogramClient(aiogram.Dispatcher):
                                     text=(
                                              f"Пользователь {current_user.tg_username} ({current_user.tg_id})\n"
                                              f"\n"
-                                             f"Баланс: {self._get_amount_with_currency(current_user.balance)}\n"
+                                             f"Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}\n"
                                              f"Активных подписок: {len(current_subscriptions)}\n"
                                              f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
                                          ) + (
                                              f"\n"
                                              f"<b>Реферальные выплаты:</b>\n"
-                                             f"Первое пополнение: <b>{(current_referrer_model.multiplier_first if current_referrer_model else self._config.referral.multiplier_first):.0%}</b>\n"
-                                             f"Следующие пополнения: <b>{(current_referrer_model.multiplier_common if current_referrer_model else self._config.referral.multiplier_common):.0%}</b>\n"
+                                             f"Первое пополнение: <b>{current_referrer_model.multiplier_first:.0%}</b>\n"
+                                             f"Следующие пополнения: <b>{current_referrer_model.multiplier_common:.0%}</b>\n"
                                          ) + (
                                              (
                                                  f"\n"
@@ -835,7 +810,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         button.callback_data = f"admin_subscription {subscription.subscription_id}"
                                         markup_builder.row(button)
                                     markup_builder.row(
-                                        *self._get_page_buttons(
+                                        *self._buttons._get_page_buttons(
                                             page="admin_subscriptions",
                                             page_items=current_subscriptions,
                                             current_page_id=current_page_id,
@@ -847,7 +822,10 @@ class AiogramClient(aiogram.Dispatcher):
                                     await self._bot.edit_message_text(
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
-                                        text="Выберите подписку:",
+                                        text=(
+                                            f"Выберите подписку:\n"
+                                            f"(Всего: {len(current_subscriptions)})\n"
+                                        ),
                                         reply_markup=markup_builder.as_markup(),
                                     )
                                 else:
@@ -904,7 +882,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         f"\n"
                                         f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
                                         f"\n"
-                                        f"Статус: {("Активна" if bool(current_subscription.is_active) else "Отменена") if current_subscription.expires_date > datetime.datetime.now().timestamp() else "Истекла"}\n"
+                                        f"Статус: {current_subscription.status}\n"
                                         f"Подключена: {datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}\n"
                                         f"Истекает: {datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}\n"
                                     ),
@@ -930,12 +908,12 @@ class AiogramClient(aiogram.Dispatcher):
                                         button = self._buttons.page_item_payment.model_copy()
                                         button.text = button.text.format(
                                             payment.payment_id,
-                                            self._get_amount_with_currency(payment.payment_amount),
+                                            self._config.payments.get_amount_with_currency(payment.payment_amount),
                                         )
                                         button.callback_data = f"admin_payment {payment.payment_id}"
                                         markup_builder.row(button)
                                     markup_builder.row(
-                                        *self._get_page_buttons(
+                                        *self._buttons._get_page_buttons(
                                             page="admin_payments",
                                             page_items=current_payments,
                                             current_page_id=current_page_id,
@@ -947,7 +925,10 @@ class AiogramClient(aiogram.Dispatcher):
                                     await self._bot.edit_message_text(
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
-                                        text="Выберите платёж:",
+                                        text=(
+                                            f"Выберите платёж:\n"
+                                            f"Всего: ({len(current_payments)})\n"
+                                        ),
                                         reply_markup=markup_builder.as_markup(),
                                     )
                                 else:
@@ -1014,8 +995,10 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
         await pre_checkout_query.answer(
-            ok=self._minimum_plan.price * self._minimum_plan.months <= current_user.balance + pre_checkout_query.total_amount / self._config.payments.currency_multiplier <= self._config.payments.max_balance,
-            error_message=f"Сумма пополнения превышает максимальную ({self._get_amount_with_currency(self._config.payments.max_balance - current_user.balance)})!",
+            ok=self._minimum_plan.cost <= current_user.balance + pre_checkout_query.total_amount / self._config.payments.currency_multiplier <= self._get_max_balance(
+                user=current_user,
+            ),
+            error_message=f"Сумма пополнения превышает максимальную ({self._config.payments.get_amount_with_currency(self._get_max_balance(user=current_user) - current_user.balance)})!",
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
@@ -1054,22 +1037,19 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
         if referrer_user:
-            referrer_model = self._data.referrers.get_referrer_by_id(
-                tg_id=referrer_user.tg_id,
+            referrer_model = self._config.referral.get_referrer_model(
+                referrer=self._data.referrers.get_referrer_by_id(
+                    tg_id=referrer_user.tg_id,
+                ),
             )
 
-            if is_first_payment:
-                referrer_bonus = int(
-                    payment_amount * referrer_model.multiplier_first if referrer_model else self._config.referral.multiplier_first
-                )
-            else:
-                referrer_bonus = int(
-                    payment_amount * referrer_model.multiplier_common if referrer_model else self._config.referral.multiplier_common
-                )
+            referrer_bonus_amount = int(
+                payment_amount * referrer_model.multiplier_first if is_first_payment else referrer_model.multiplier_common,
+            )
 
             self._database.payments.add_payment(
                 tg_id=referrer_user.tg_id,
-                payment_amount=referrer_bonus,
+                payment_amount=referrer_bonus_amount,
                 payment_currency=self._config.payments.currency,
                 provider_payment_id=None,
                 payment_payload=f"referral {current_user.tg_id} {payment_amount} ({is_first_payment=})",
@@ -1078,7 +1058,7 @@ class AiogramClient(aiogram.Dispatcher):
 
             self._database.users.add_balance(
                 tg_id=referrer_user.tg_id,
-                amount=referrer_bonus,
+                amount=referrer_bonus_amount,
             )
 
         try:
@@ -1089,7 +1069,7 @@ class AiogramClient(aiogram.Dispatcher):
             await self._bot.send_message(
                 chat_id=message.chat.id,
                 message_thread_id=self._get_message_thread_id(message),
-                text=f"Баланс пополнен на {self._get_amount_with_currency(payment_amount)}!",
+                text=f"Баланс пополнен на {self._config.payments.get_amount_with_currency(payment_amount)}!",
                 reply_markup=markup_builder.as_markup(),
             )
         except aiogram.exceptions.TelegramForbiddenError as e:
@@ -1121,7 +1101,7 @@ class AiogramClient(aiogram.Dispatcher):
         try:
             amount = int(amount)
 
-            if self._minimum_plan.price * self._minimum_plan.months <= current_user.balance + amount <= self._config.payments.max_balance and self._minimum_plan.price * self._minimum_plan.months < amount:
+            if self._minimum_plan.cost <= current_user.balance + amount <= self._get_max_balance(user=current_user):
                 await self.add_funds_invoice(
                     message=message,
                     chat=message.chat,
@@ -1139,7 +1119,7 @@ class AiogramClient(aiogram.Dispatcher):
                 message_thread_id=self._get_message_thread_id(message),
                 text=(
                     f"<b>Сумма пополнения должна\n"
-                    f"быть числом от {self._minimum_plan.price * self._minimum_plan.months} до {self._config.payments.max_balance - current_user.balance}!</b>\n"
+                    f"быть числом от {self._minimum_plan.cost} до {self._get_max_balance(user=current_user) - current_user.balance}!</b>\n"
                     f"\n"
                     f"Введите сумму, на которую\n"
                     f"хотите пополнить баланс:\n"

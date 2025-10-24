@@ -37,10 +37,19 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         max_subscriptions: int
         provider_token: str
 
+        def get_amount_with_currency(self, amount: int) -> str:
+            return f"{amount} {self.currency}"
+
     class ReferralConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Referral"
         multiplier_common: float
         multiplier_first: float
+
+        def get_referrer_model(
+                self,
+                referrer: models.Referrer | None
+        ) -> models.Referrer | ConfigProvider.ReferralConfig:
+            return referrer if referrer else self
 
     class SettingsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Settings"
