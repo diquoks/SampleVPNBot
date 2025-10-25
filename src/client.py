@@ -526,8 +526,8 @@ class AiogramClient(aiogram.Dispatcher):
                             tg_id=call.from_user.id,
                             payment_amount=-current_plan.cost,
                             payment_currency=self._config.payments.currency,
-                            provider_payment_id=None,
                             payment_payload=call.data,
+                            payment_provider_id=None,
                             payment_date=int(datetime_subscribed.timestamp()),
                         )
 
@@ -971,7 +971,45 @@ class AiogramClient(aiogram.Dispatcher):
                                         text="Совершённые платежи отсутствуют!",
                                         show_alert=True,
                                     )
-                            # TODO: `case ["admin_payment", current_payment_id]:`
+                            case ["admin_payment", current_payment_id]:
+                                current_payment_id = int(current_payment_id)
+
+                                current_payment = self._database.payments.get_payment(
+                                    payment_id=current_payment_id,
+                                )
+
+                                current_user = self._database.users.get_user(
+                                    tg_id=current_payment.tg_id,
+                                )
+
+                                admin_user_button = self._buttons.admin_user.model_copy()
+                                admin_user_button.callback_data = admin_user_button.callback_data.format(
+                                    current_user.tg_id,
+                                )
+
+                                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                markup_builder.row(admin_user_button)
+                                markup_builder.row(self._buttons.back_to_admin)
+
+                                await self._bot.edit_message_text(
+                                    chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    text=(
+                                             f"Платёж #{current_payment.payment_id}\n"
+                                             f"\n"
+                                             f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
+                                             f"\n"
+                                             f"Сумма: {current_payment.payment_amount} {current_payment.payment_currency}\n"
+                                             f"Информация: «{current_payment.payment_payload}»\n"
+                                             f"Совершён: {datetime.datetime.fromtimestamp(current_payment.payment_date).strftime("%d.%m.%y %H:%M:%S")}\n"
+                                         ) + (
+                                             (
+                                                 f"\n"
+                                                 f"ID платежа: {current_payment.payment_provider_id}\n"
+                                             ) if current_payment.payment_provider_id else str()
+                                         ),
+                                    reply_markup=markup_builder.as_markup(),
+                                )
                             case ["admin_logs"]:
                                 if self._config.settings.file_logging:
                                     logs_file = self._logger.get_logs_file()
@@ -1060,8 +1098,8 @@ class AiogramClient(aiogram.Dispatcher):
             tg_id=message.from_user.id,
             payment_amount=payment_amount,
             payment_currency=message.successful_payment.currency,
-            provider_payment_id=message.successful_payment.provider_payment_charge_id,
             payment_payload=message.successful_payment.invoice_payload,
+            payment_provider_id=message.successful_payment.provider_payment_charge_id,
             payment_date=successful_payment_date,
         )
 
@@ -1085,8 +1123,8 @@ class AiogramClient(aiogram.Dispatcher):
                 tg_id=referrer_user.tg_id,
                 payment_amount=referrer_bonus_amount,
                 payment_currency=self._config.payments.currency,
-                provider_payment_id=None,
                 payment_payload=f"referral {current_user.tg_id} {payment_amount} ({is_first_payment=})",
+                payment_provider_id=None,
                 payment_date=successful_payment_date,
             )
 

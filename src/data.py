@@ -105,8 +105,8 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         tg_id INTEGER NOT NULL,
         payment_amount INTEGER NOT NULL,
         payment_currency TEXT NOT NULL,
-        provider_payment_id TEXT,
         payment_payload TEXT NOT NULL,
+        payment_provider_id TEXT,
         payment_date INTEGER NOT NULL
         )
         """
@@ -116,8 +116,8 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 tg_id: int,
                 payment_amount: int,
                 payment_currency: str,
-                provider_payment_id: str | None,
                 payment_payload: str,
+                payment_provider_id: str | None,
                 payment_date: int,
         ) -> None:
             cursor = self.cursor()
@@ -128,13 +128,13 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 tg_id,
                 payment_amount,
                 payment_currency,
-                provider_payment_id,
                 payment_payload,
+                payment_provider_id,
                 payment_date
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (tg_id, payment_amount, payment_currency, provider_payment_id, payment_payload, payment_date),
+                (tg_id, payment_amount, payment_currency, payment_payload, payment_provider_id, payment_date),
             )
 
             self.commit()
@@ -190,7 +190,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE provider_payment_id IS NOT NULL AND tg_id == ?
+                SELECT * FROM {self._NAME} WHERE payment_provider_id IS NOT NULL AND tg_id == ?
                 """,
                 (tg_id,),
             )

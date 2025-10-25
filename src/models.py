@@ -79,16 +79,16 @@ class PaymentValues(pyquoks.models.IValues):
         "tg_id",
         "payment_amount",
         "payment_currency",
-        "provider_payment_id",
         "payment_payload",
+        "payment_provider_id",
         "payment_date",
     }
     payment_id: int | None
     tg_id: int | None
     payment_amount: int | None
     payment_currency: str | None
-    provider_payment_id: str | None
     payment_payload: str | None
+    payment_provider_id: str | None
     payment_date: int | None
 
 
