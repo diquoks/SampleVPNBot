@@ -7,11 +7,12 @@ import models, data, misc
 
 class AiogramClient(aiogram.Dispatcher):
     _COMMANDS = [
-        aiogram.types.BotCommand(command="start", description="Запустить бота"),
+        aiogram.types.BotCommand(command="/start", description="Запустить бота"),
     ]
 
     class States(aiogram.fsm.state.StatesGroup):
         add_funds_enter = aiogram.fsm.state.State()
+        admin_user_balance_enter = aiogram.fsm.state.State()
 
     def __init__(self) -> None:
         self._data = data.DataProvider()
@@ -43,7 +44,14 @@ class AiogramClient(aiogram.Dispatcher):
         self._states_router.callback_query.register(self.callback_handler)
         self.pre_checkout_query.register(self.pre_add_funds_handler)
         self.message.register(self.success_add_funds_handler, aiogram.F.successful_payment)
-        self._states_router.message.register(self.add_funds_enter_handler, self._states.add_funds_enter)
+        self._states_router.message.register(
+            self.add_funds_enter_handler,
+            self._states.add_funds_enter,
+        )
+        self._states_router.message.register(
+            self.admin_user_balance_enter_handler,
+            self._states.admin_user_balance_enter,
+        )
 
         self._minimum_plan = self._data.plans.plans[data.Constants.MINIMUM_PLAN]
         self._logger.info(f"{self.name} initialized!")
@@ -73,10 +81,10 @@ class AiogramClient(aiogram.Dispatcher):
 
     def _get_max_balance(
             self,
-            user: models.UserValues,
+            tg_id: int,
     ) -> int:
         current_subscriptions = self._database.subscriptions.get_user_active_subscriptions(
-            tg_id=user.tg_id,
+            tg_id=tg_id,
         )
 
         return max(
@@ -235,7 +243,6 @@ class AiogramClient(aiogram.Dispatcher):
         await self._bot.set_my_commands(
             commands=self._COMMANDS,
             scope=aiogram.types.BotCommandScopeDefault(),
-            language_code="ru",
         )
 
         self._logger.info(f"{self.name} started!")
@@ -571,7 +578,7 @@ class AiogramClient(aiogram.Dispatcher):
                             reply_markup=markup_builder.as_markup(),
                         )
                 case ["add_funds_enter"]:
-                    if current_user.balance + self._minimum_plan.cost < self._get_max_balance(user=current_user):
+                    if current_user.balance + self._minimum_plan.cost < self._get_max_balance(tg_id=current_user.tg_id):
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                         markup_builder.row(self._buttons.back_to_add_funds)
 
@@ -581,10 +588,11 @@ class AiogramClient(aiogram.Dispatcher):
                             text=(
                                 f"Введите сумму, на которую\n"
                                 f"хотите пополнить баланс\n"
-                                f"<b>(число от {self._minimum_plan.cost} до {self._get_max_balance(user=current_user) - current_user.balance}):</b>\n"
+                                f"<b>(число от {self._minimum_plan.cost} до {self._get_max_balance(tg_id=current_user.tg_id) - current_user.balance}):</b>\n"
                             ),
                             reply_markup=markup_builder.as_markup(),
                         )
+
                         await state.set_state(self._states.add_funds_enter)
                     else:
                         await self._bot.answer_callback_query(
@@ -595,7 +603,7 @@ class AiogramClient(aiogram.Dispatcher):
                 case ["add_funds", amount]:
                     amount = int(amount)
 
-                    if current_user.balance + amount < self._get_max_balance(user=current_user):
+                    if current_user.balance + amount < self._get_max_balance(tg_id=current_user.tg_id):
                         try:
                             await self._bot.delete_message(
                                 chat_id=call.message.chat.id,
@@ -610,7 +618,7 @@ class AiogramClient(aiogram.Dispatcher):
                     else:
                         await self._bot.answer_callback_query(
                             callback_query_id=call.id,
-                            text=f"Сумма пополнения превышает максимальную ({self._config.payments.get_amount_with_currency(self._get_max_balance(user=current_user) - current_user.balance)})!",
+                            text=f"Сумма пополнения выходит за доступные пределы!",
                             show_alert=True,
                         )
                 case ["subscription" | "subscription_switch_active", current_subscription_id]:
@@ -783,7 +791,33 @@ class AiogramClient(aiogram.Dispatcher):
                                          ),
                                     reply_markup=markup_builder.as_markup(),
                                 )
-                            # TODO: `case ["admin_user_balance_enter", current_user_id]`
+                            case ["admin_user_balance_enter", current_user_id]:
+                                current_user_id = int(current_user_id)
+
+                                current_user = self._database.users.get_user(
+                                    tg_id=current_user_id,
+                                )
+
+                                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                markup_builder.row(self._buttons.back_to_admin)
+
+                                await self._bot.edit_message_text(
+                                    chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    text=(
+                                        f"Введите новый баланс для\n"
+                                        f"{current_user.tg_username} ({current_user.tg_id})\n"
+                                        f"(Сейчас: {current_user.balance}/{self._get_max_balance(tg_id=current_user.tg_id)}):\n"
+                                    ),
+                                    reply_markup=markup_builder.as_markup(),
+                                )
+
+                                await state.set_state(self._states.admin_user_balance_enter)
+                                await state.set_data(
+                                    {
+                                        "tg_id": current_user.tg_id,
+                                    }
+                                )
                             # TODO: `case ["admin_configs", current_page_id]:` (DATABASE)
                             case ["admin_subscriptions", current_page_id, *current_user_id]:
                                 current_page_id = int(current_page_id)
@@ -996,9 +1030,9 @@ class AiogramClient(aiogram.Dispatcher):
 
         await pre_checkout_query.answer(
             ok=self._minimum_plan.cost <= current_user.balance + pre_checkout_query.total_amount / self._config.payments.currency_multiplier <= self._get_max_balance(
-                user=current_user,
+                tg_id=current_user.tg_id,
             ),
-            error_message=f"Сумма пополнения превышает максимальную ({self._config.payments.get_amount_with_currency(self._get_max_balance(user=current_user) - current_user.balance)})!",
+            error_message=f"Сумма пополнения выходит за доступные пределы!",
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
@@ -1101,7 +1135,9 @@ class AiogramClient(aiogram.Dispatcher):
         try:
             amount = int(amount)
 
-            if self._minimum_plan.cost <= current_user.balance + amount <= self._get_max_balance(user=current_user):
+            if self._minimum_plan.cost <= current_user.balance + amount <= self._get_max_balance(
+                    tg_id=current_user.tg_id,
+            ):
                 await self.add_funds_invoice(
                     message=message,
                     chat=message.chat,
@@ -1119,14 +1155,79 @@ class AiogramClient(aiogram.Dispatcher):
                 message_thread_id=self._get_message_thread_id(message),
                 text=(
                     f"<b>Сумма пополнения должна\n"
-                    f"быть числом от {self._minimum_plan.cost} до {self._get_max_balance(user=current_user) - current_user.balance}!</b>\n"
+                    f"быть числом от {self._minimum_plan.cost} до {self._get_max_balance(tg_id=current_user.tg_id) - current_user.balance}!</b>\n"
                     f"\n"
                     f"Введите сумму, на которую\n"
                     f"хотите пополнить баланс:\n"
                 ),
-                reply_to_message_id=message.message_id,
                 reply_markup=markup_builder.as_markup(),
             )
+
             await state.set_state(self._states.add_funds_enter)
+
+    async def admin_user_balance_enter_handler(
+            self,
+            message: aiogram.types.Message,
+            state: aiogram.fsm.context.FSMContext,
+    ) -> None:
+        amount = message.text
+        current_user_id = (await state.get_data())["tg_id"]
+
+        self._logger.log_user_interaction(
+            user=message.from_user,
+            interaction=f"{self.admin_user_balance_enter_handler.__name__} ({current_user_id=}, {amount=})",
+        )
+
+        current_user = self._database.users.get_user(
+            tg_id=current_user_id,
+        )
+
+        try:
+            amount = int(amount)
+
+            self._database.users.edit_balance(
+                tg_id=current_user_id,
+                balance=amount,
+            )
+
+            current_user = self._database.users.get_user(
+                tg_id=current_user_id,
+            )
+
+            markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+            markup_builder.row(self._buttons.back_to_admin)
+
+            await self._bot.send_message(
+                chat_id=message.chat.id,
+                message_thread_id=self._get_message_thread_id(message),
+                text=(
+                    f"<b>Баланс изменён!</b>\n"
+                    f"{self._config.payments.get_amount_with_currency(current_user.balance)} | {current_user.tg_username} ({current_user.tg_id})\n"
+                ),
+                reply_markup=markup_builder.as_markup(),
+            )
+        except:
+            markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+            markup_builder.row(self._buttons.back_to_admin)
+
+            await self._bot.send_message(
+                chat_id=message.chat.id,
+                message_thread_id=self._get_message_thread_id(message),
+                text=(
+                    f"<b>Баланс должен быть числом!</b>\n"
+                    f"\n"
+                    f"Введите новый баланс для\n"
+                    f"{current_user.tg_username} ({current_user.tg_id})\n"
+                    f"(Сейчас: {current_user.balance}/{self._get_max_balance(tg_id=current_user.tg_id)}):\n"
+                ),
+                reply_markup=markup_builder.as_markup(),
+            )
+
+            await state.set_state(self._states.admin_user_balance_enter)
+            await state.set_data(
+                {
+                    "tg_id": current_user.tg_id,
+                }
+            )
 
     # endregion
