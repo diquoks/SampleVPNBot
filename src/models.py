@@ -39,6 +39,9 @@ class PlansContainer(pyquoks.models.IContainer):
     }
     plans: list[Plan] | None
 
+    def get_plan_by_id(self, plan_id: int) -> Plan:
+        return self.plans[plan_id]
+
 
 class Referrer(pyquoks.models.IModel):
     _ATTRIBUTES = {

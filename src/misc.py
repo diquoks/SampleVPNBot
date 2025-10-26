@@ -9,246 +9,410 @@ class ButtonsContainer:
         self._data = data.DataProvider()
         self._config = data.ConfigProvider()
 
-        # region /start
+    # region /start
 
-        self.plans = aiogram.types.InlineKeyboardButton(
+    @property
+    def plans(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Тарифные планы",
             callback_data="plans",
         )
-        self.add_funds = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def add_funds(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Пополнить баланс",
             callback_data="add_funds",
         )
-        self.invite = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def invite_friend(bot_username: str, tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Пригласить друга",
+            copy_text=aiogram.types.CopyTextButton(
+                text=f"https://t.me/{bot_username}?start={tg_id}",
+            )
         )
-        self.subscriptions = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def subscriptions(page_id: int = data.Constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Мои подписки",
-            callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
+            callback_data=f"subscriptions {page_id}",
         )
-        self.profile = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def profile(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Профиль",
             callback_data="profile",
         )
 
-        # endregion
+    # endregion
 
-        # region /admin
+    # region /admin
 
-        self.admin_users = aiogram.types.InlineKeyboardButton(
+    @staticmethod
+    def admin_users(page_id: int = data.Constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Пользователи",
-            callback_data=f"admin_users {data.Constants.FIRST_PAGE_ID}",
+            callback_data=f"admin_users {page_id}",
         )
-        self.admin_configs = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def admin_configs(page_id: int = data.Constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Конфигурации",
-            callback_data=f"admin_configs {data.Constants.FIRST_PAGE_ID}",
+            callback_data=f"admin_configs {page_id}",
         )
-        self.admin_subscriptions = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def admin_subscriptions(
+            page_id: int = data.Constants.FIRST_PAGE_ID,
+            tg_id: int = None,
+    ) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Подписки",
-            callback_data=f"admin_subscriptions {data.Constants.FIRST_PAGE_ID}",
+            callback_data=" ".join(
+                i for i in [
+                    "admin_subscriptions",
+                    str(page_id),
+                    str(tg_id) if tg_id else None,
+                ] if i
+            ),
         )
-        self.admin_payments = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def admin_payments(
+            page_id: int = data.Constants.FIRST_PAGE_ID,
+            tg_id: int = None,
+    ) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Платежи",
-            callback_data=f"admin_payments {data.Constants.FIRST_PAGE_ID}",
+            callback_data=" ".join(
+                i for i in [
+                    "admin_payments",
+                    str(page_id),
+                    str(tg_id) if tg_id else None,
+                ] if i
+            ),
         )
-        self.admin_logs = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def admin_logs(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Логи",
             callback_data="admin_logs",
         )
-        self.admin_settings = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def admin_settings(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Настройки",
             callback_data="admin_settings",
         )
 
-        self.admin_user_balance_enter = aiogram.types.InlineKeyboardButton(
+    @staticmethod
+    def admin_user_balance_enter(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Изменить баланс",
-            callback_data="admin_user_balance_enter {0}",
-        )
-        self.admin_user_referral = aiogram.types.InlineKeyboardButton(
-            text="Реферал",
-            callback_data="admin_user {0}",
+            callback_data=f"admin_user_balance_enter {tg_id}",
         )
 
-        self.admin_user = aiogram.types.InlineKeyboardButton(
+    @staticmethod
+    def admin_user_referrer(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Реферер",
+            callback_data=f"admin_user {tg_id}",
+        )
+
+    @staticmethod
+    def admin_user(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Пользователь",
-            callback_data="admin_user {0}",
+            callback_data=f"admin_user {tg_id}",
         )
-        self.admin_subscription_expire = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def admin_subscription_expire(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Завершить подписку",
-            callback_data="admin_subscription_expire {0}",
+            callback_data=f"admin_subscription_expire {subscription_id}",
         )
 
-        # endregion
+    # endregion
 
-        # region plans
+    # region plans
 
-        self.plan_add_funds = aiogram.types.InlineKeyboardButton(
-            text="Пополнить на {0}",
-            callback_data="add_funds {0}",
+    def plan_add_funds(self, amount: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"Пополнить на {self._config.payments.get_amount_with_currency(amount)}",
+            callback_data=f"add_funds {amount}",
         )
-        self._plan = aiogram.types.InlineKeyboardButton(
-            text=str(),
-            callback_data="plan {0}",
+
+    def _plan(self, plan_type: models.PlansType) -> aiogram.types.InlineKeyboardButton:
+        current_plan = self._data.plans.get_plan_by_id(plan_type.value)
+
+        return aiogram.types.InlineKeyboardButton(
+            text=current_plan.name,
+            callback_data=f"plan {plan_type.value}",
         )
-        self._plan_subscribe = aiogram.types.InlineKeyboardButton(
-            text="Подписаться за {0}",
-            callback_data="plan_subscribe {0}",
+
+    @property
+    def plan_buttons(self) -> list[aiogram.types.InlineKeyboardButton]:
+        return [
+            self._plan(
+                plan_type=plan_type,
+            ) for plan_type in models.PlansType
+        ]
+
+    def _plan_subscribe(self, plan_type: models.PlansType) -> aiogram.types.InlineKeyboardButton:
+        current_plan = self._data.plans.get_plan_by_id(plan_type.value)
+
+        return aiogram.types.InlineKeyboardButton(
+            text=f"Подписаться за {self._config.payments.get_amount_with_currency(current_plan.cost)}",
+            callback_data=f"plan_subscribe {plan_type.value}",
         )
-        # plan_*
-        for plan_type in models.PlansType:
-            plan = self._data.plans.plans[plan_type.value]
 
-            button = self._plan.model_copy()
-            button.text = plan.name
-            button.callback_data = button.callback_data.format(plan_type.value)
+    @property
+    def plan_subscribe_buttons(self) -> list[aiogram.types.InlineKeyboardButton]:
+        return [
+            self._plan_subscribe(
+                plan_type=plan_type,
+            ) for plan_type in models.PlansType
+        ]
 
-            setattr(self, f"plan_{plan_type.value}", button)
-        # plan_subscribe_*
-        for plan_type in models.PlansType:
-            plan = self._data.plans.plans[plan_type.value]
+    # endregion
 
-            button = self._plan_subscribe.model_copy()
-            button.text = button.text.format(self._config.payments.get_amount_with_currency(plan.price * plan.months))
-            button.callback_data = button.callback_data.format(plan_type.value)
+    # region add_funds
 
-            setattr(self, f"plan_subscribe_{plan_type.value}", button)
-
-        # endregion
-
-        # region add_funds
-
-        self.add_funds_enter = aiogram.types.InlineKeyboardButton(
+    @property
+    def add_funds_enter(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Ввести сумму",
             callback_data="add_funds_enter",
         )
-        self._add_funds = aiogram.types.InlineKeyboardButton(
-            text=str(),
-            callback_data="add_funds {0}",
+
+    def _add_funds(self, amount: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=self._config.payments.get_amount_with_currency(amount),
+            callback_data=f"add_funds {amount}",
         )
-        # add_funds_*
-        for plan_type in models.PlansType:
-            plan = self._data.plans.plans[plan_type.value]
-            amount = plan.price * plan.months
 
-            button = self._add_funds.model_copy()
-            button.text = self._config.payments.get_amount_with_currency(amount)
-            button.callback_data = button.callback_data.format(amount)
+    @property
+    def add_funds_buttons(self) -> list[aiogram.types.InlineKeyboardButton]:
+        return [
+            self._add_funds(
+                amount=self._data.plans.get_plan_by_id(plan_type.value).cost,
+            ) for plan_type in models.PlansType
+        ]
 
-            setattr(self, f"add_funds_{plan_type.value}", button)
+    # endregion
 
-        # endregion
+    # region subscriptions
 
-        # region subscriptions
-        self.subscription_config_data = aiogram.types.InlineKeyboardButton(
+    @staticmethod
+    def subscription_config(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Данные для подключения",
-            callback_data="subscription_config_file {0}",
+            callback_data=f"subscription_config_file {subscription_id}",
         )
-        self.subscription_config_file = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def subscription_config_file(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Файл конфигурации",
-            callback_data="subscription_config_file {0}",
+            callback_data=f"subscription_config_file {subscription_id}",
         )
-        self.subscription_config_copy = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def subscription_config_copy(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Ключ для подключения",
-            callback_data="subscription_config_copy {0}",
+            callback_data=f"subscription_config_copy {subscription_id}",
         )
-        self.subscription_config_download = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def subscription_config_download(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Скачать AmneziaVPN",
             url="https://storage.googleapis.com/amnezia/amnezia.org",
         )
-        self.subscription_switch_active = aiogram.types.InlineKeyboardButton(
-            text=str(),
-            callback_data="subscription_switch_active {0}",
+
+    @staticmethod
+    def subscription_switch_active(status_text: str, subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=status_text,
+            callback_data=f"subscription_switch_active {subscription_id}",
         )
 
-        # endregion
+    # endregion
 
-        # region page
+    # region TODO: page
 
-        self.page_enter = aiogram.types.InlineKeyboardButton(
+    @staticmethod
+    def _page_enter(page: str) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Ввести ID элемента",
-            callback_data="{0}_enter",
+            callback_data=f"{page}_enter",
         )
-        self.page_previous = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def _page_previous(
+            page: str,
+            page_id: int,
+            tg_id: int = None,
+            is_just_answer: bool = False,
+    ) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="<",
-            callback_data=str(),
+            callback_data="just_answer" if is_just_answer else " ".join(
+                i for i in [
+                    page,
+                    str(page_id),
+                    str(tg_id) if tg_id else None,
+                ] if i
+            ),
         )
-        self.page_info = aiogram.types.InlineKeyboardButton(
-            text="{0} / {1}",
-            callback_data=str(),
+
+    @staticmethod
+    def _page_info(
+            page: str,
+            page_id: int,
+            page_count: int,
+            tg_id: int = None,
+            is_just_answer: bool = False,
+    ) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"{page_id} / {page_count}",
+            callback_data="just_answer" if is_just_answer else " ".join(
+                i for i in [
+                    page,
+                    str(data.Constants.FIRST_PAGE_ID),
+                    str(tg_id) if tg_id else None,
+                ] if i
+            ),
         )
-        self.page_next = aiogram.types.InlineKeyboardButton(
+
+    @staticmethod
+    def _page_next(
+            page: str,
+            page_id: int,
+            tg_id: int = None,
+            is_just_answer: bool = False,
+    ) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text=">",
-            callback_data=str(),
+            callback_data="just_answer" if is_just_answer else " ".join(
+                i for i in [
+                    page,
+                    str(page_id),
+                    str(tg_id) if tg_id else None,
+                ] if i
+            ),
         )
 
-        self.page_item_user = aiogram.types.InlineKeyboardButton(
-            text="{0} ({1})",
-            callback_data=str(),
-        )
-        self.page_item_subscription = aiogram.types.InlineKeyboardButton(
-            text="#{0} «{1}»",
-            callback_data=str(),
-        )
-        self.page_item_payment = aiogram.types.InlineKeyboardButton(
-            text="#{0} ({1})",
-            callback_data=str(),
+    @staticmethod
+    def page_item_user(page: str, tg_username: str | None, tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"{tg_username} ({tg_id})" if tg_username else tg_id,
+            callback_data=f"{page} {tg_id}",
         )
 
-        # endregion
-
-        # region back_to_*
-
-        self.back_to_start = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data="start",
-        )
-        self.back_to_plans = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data="plans",
-        )
-        self.back_to_plan = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data="plan {0}",
-        )
-        self.back_to_subscriptions = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data=f"subscriptions {data.Constants.FIRST_PAGE_ID}",
-        )
-        self.back_to_add_funds = aiogram.types.InlineKeyboardButton(
-            text="Отмена",
-            callback_data="add_funds",
-        )
-        self.back_to_admin = aiogram.types.InlineKeyboardButton(
-            text="Назад",
-            callback_data="admin",
+    @staticmethod
+    def page_item_subscription(page: str, plan_name: str, subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"#{subscription_id} «{plan_name}»",
+            callback_data=f"{page} {subscription_id}",
         )
 
-        self.delete_to_start = aiogram.types.InlineKeyboardButton(
+    def page_item_payment(self, page: str, payment_amount: int, payment_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"#{payment_id} ({self._config.payments.get_amount_with_currency(payment_amount)})",
+            callback_data=f"{page} {payment_id}",
+        )
+
+    # endregion
+
+    # region back_to_*
+
+    @property
+    def delete_to_start(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Главное меню",
             callback_data="delete_to_start",
         )
 
-        # endregion
+    @property
+    def back_to_start(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data="start",
+        )
 
-        # region view_*
+    @property
+    def back_to_plans(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data="plans",
+        )
 
-        self.view_start = aiogram.types.InlineKeyboardButton(
+    @property
+    def back_to_add_funds(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Отмена",
+            callback_data="add_funds",
+        )
+
+    @staticmethod
+    def back_to_subscriptions(page_id: int = data.Constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data=f"subscriptions {page_id}",
+        )
+
+    @property
+    def back_to_admin(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data="admin",
+        )
+
+    @staticmethod
+    def back_to_plan(plan_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Назад",
+            callback_data=f"plan {plan_id}",
+        )
+
+    # endregion
+
+    # region view_*
+
+    @property
+    def view_start(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Главное меню",
             callback_data="start",
         )
-        self.view_plans = aiogram.types.InlineKeyboardButton(
+
+    @property
+    def view_plans(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
             text="Перейти к тарифам",
             callback_data="plans",
         )
 
-        # endregion
+    # endregion
 
-    def _get_page_buttons(
+    # region Helpers
+
+    def get_page_buttons(
             self,
-            page: str,
             page_items: list,
-            current_page_id: int,
-            current_user_id: int | None = None,
+            page: str,
+            page_id: int,
+            tg_id: int | None = None,
     ) -> tuple[
         aiogram.types.InlineKeyboardButton,
         tuple[
@@ -257,45 +421,35 @@ class ButtonsContainer:
             aiogram.types.InlineKeyboardButton,
         ],
     ]:
-        previous_page_id = current_page_id - 1
-        next_page_id = current_page_number = current_page_id + 1
-        total_pages_count = math.ceil(len(page_items) / data.Constants.ELEMENTS_PER_PAGE)
-
-        page_enter_button = self.page_enter.model_copy()
-        page_enter_button.callback_data = page_enter_button.callback_data.format(
-            page,
-        )
-
-        page_previous_button = self.page_previous.model_copy()
-        page_previous_button.callback_data = " ".join(i for i in [
-            page,
-            str(previous_page_id),
-            str(current_user_id) if current_user_id else str(),
-        ] if i) if previous_page_id >= data.Constants.FIRST_PAGE_ID else "just_answer"
-
-        page_info_button = self.page_info.model_copy()
-        page_info_button.text = page_info_button.text.format(
-            current_page_number,
-            total_pages_count,
-        )
-        page_info_button.callback_data = " ".join(i for i in [
-            page,
-            str(data.Constants.FIRST_PAGE_ID),
-            str(current_user_id) if current_user_id else str(),
-        ] if i) if current_page_id != data.Constants.FIRST_PAGE_ID else "just_answer"
-
-        page_next_button = self.page_next.model_copy()
-        page_next_button.callback_data = " ".join(i for i in [
-            page,
-            str(next_page_id),
-            str(current_user_id) if current_user_id else str(),
-        ] if i) if next_page_id < total_pages_count else "just_answer"
+        previous_page_id = page_id - 1
+        next_page_id = page_number = page_id + 1
+        pages_count = math.ceil(len(page_items) / data.Constants.ITEMS_PER_PAGE)
 
         return (
-            page_enter_button,
+            self._page_enter(
+                page=page,
+            ),
             (
-                page_previous_button,
-                page_info_button,
-                page_next_button,
+                self._page_previous(
+                    page=page,
+                    page_id=previous_page_id,
+                    is_just_answer=previous_page_id < data.Constants.FIRST_PAGE_ID,
+                    tg_id=tg_id,
+                ),
+                self._page_info(
+                    page=page,
+                    page_id=page_number,
+                    page_count=pages_count,
+                    tg_id=tg_id,
+                    is_just_answer=page_id == data.Constants.FIRST_PAGE_ID,
+                ),
+                self._page_next(
+                    page=page,
+                    page_id=next_page_id,
+                    tg_id=tg_id,
+                    is_just_answer=next_page_id >= pages_count,
+                ),
             ),
         )
+
+    # endregion

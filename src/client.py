@@ -93,7 +93,7 @@ class AiogramClient(aiogram.Dispatcher):
             ),
         )
 
-        self._minimum_plan = self._data.plans.plans[data.Constants.MINIMUM_PLAN]
+        self._minimum_plan = self._data.plans.get_plan_by_id(data.Constants.MINIMUM_PLAN)
         self._logger.info(f"{self.name} initialized!")
 
     # region Properties and helpers
@@ -129,7 +129,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         return max(
             self._config.payments.max_balance,
-            sum([self._data.plans.plans[subscription.plan_id].cost for subscription in current_subscriptions])
+            sum([self._data.plans.get_plan_by_id(subscription.plan_id).cost for subscription in current_subscriptions])
         )
 
     def _get_referrer_id(self, user_id: int, args: str | None) -> int | None:
@@ -158,13 +158,12 @@ class AiogramClient(aiogram.Dispatcher):
 
         config_key = str(None)  # TODO: выдача ключа (DATABASE)
 
-        subscription_config_copy_button = self._buttons.subscription_config_copy.model_copy()
-        subscription_config_copy_button.callback_data = subscription_config_copy_button.callback_data.format(
-            subscription_id,
-        )
-
         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-        markup_builder.row(subscription_config_copy_button)
+        markup_builder.row(
+            self._buttons.subscription_config_copy(
+                subscription_id=subscription_id,
+            ),
+        )
         markup_builder.row(self._buttons.subscription_config_download)
         markup_builder.row(self._buttons.delete_to_start)
 
@@ -195,13 +194,12 @@ class AiogramClient(aiogram.Dispatcher):
 
         config_key = str(None)  # TODO: выдача ключа (DATABASE)
 
-        subscription_config_file_button = self._buttons.subscription_config_file.model_copy()
-        subscription_config_file_button.callback_data = subscription_config_file_button.callback_data.format(
-            subscription_id,
-        )
-
         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-        markup_builder.row(subscription_config_file_button)
+        markup_builder.row(
+            self._buttons.subscription_config_file(
+                subscription_id=subscription_id,
+            ),
+        )
         markup_builder.row(self._buttons.subscription_config_download)
         markup_builder.row(self._buttons.delete_to_start)
 
@@ -228,16 +226,16 @@ class AiogramClient(aiogram.Dispatcher):
                 message_id=call.message.message_id,
             )
         finally:
-            profile_invite_button = self._buttons.invite.model_copy()
-            profile_invite_button.copy_text = aiogram.types.CopyTextButton(
-                text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
-            )
-
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
             markup_builder.row(self._buttons.plans)
             markup_builder.row(self._buttons.add_funds)
-            markup_builder.row(profile_invite_button)
-            markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+            markup_builder.row(
+                self._buttons.invite_friend(
+                    bot_username=(await self.user).username,
+                    tg_id=call.from_user.id,
+                ),
+            )
+            markup_builder.row(self._buttons.subscriptions(), self._buttons.profile)
 
             await self._bot.send_message(
                 chat_id=call.message.chat.id,
@@ -300,21 +298,21 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.users.add_user(
             tg_id=message.from_user.id,
-            tg_username=f"@{message.from_user.username}",
+            tg_username=message.from_user.username,
             balance=int(),
             referrer_id=self._get_referrer_id(message.from_user.id, command.args)
-        )
-
-        profile_invite_button = self._buttons.invite.model_copy()
-        profile_invite_button.copy_text = aiogram.types.CopyTextButton(
-            text=f"https://t.me/{(await self.user).username}?start={message.from_user.id}",
         )
 
         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
         markup_builder.row(self._buttons.plans)
         markup_builder.row(self._buttons.add_funds)
-        markup_builder.row(profile_invite_button)
-        markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+        markup_builder.row(
+            self._buttons.invite_friend(
+                bot_username=(await self.user).username,
+                tg_id=message.from_user.id,
+            ),
+        )
+        markup_builder.row(self._buttons.subscriptions(), self._buttons.profile)
 
         await self._bot.send_message(
             chat_id=message.chat.id,
@@ -342,8 +340,8 @@ class AiogramClient(aiogram.Dispatcher):
 
         if is_admin:
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-            markup_builder.row(self._buttons.admin_users, self._buttons.admin_configs)
-            markup_builder.row(self._buttons.admin_subscriptions, self._buttons.admin_payments)
+            markup_builder.row(self._buttons.admin_users(), self._buttons.admin_configs())
+            markup_builder.row(self._buttons.admin_subscriptions(), self._buttons.admin_payments())
             markup_builder.row(self._buttons.admin_logs, self._buttons.admin_settings)
 
             await self._bot.send_message(
@@ -363,7 +361,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.users.add_user(
             tg_id=call.from_user.id,
-            tg_username=f"@{call.from_user.username}",
+            tg_username=call.from_user.username,
             balance=int(),
             referrer_id=None,
         )
@@ -375,16 +373,16 @@ class AiogramClient(aiogram.Dispatcher):
         try:
             match call.data.split():
                 case ["start"]:
-                    profile_invite_button = self._buttons.invite.model_copy()
-                    profile_invite_button.copy_text = aiogram.types.CopyTextButton(
-                        text=f"https://t.me/{(await self.user).username}?start={call.from_user.id}",
-                    )
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     markup_builder.row(self._buttons.plans)
                     markup_builder.row(self._buttons.add_funds)
-                    markup_builder.row(profile_invite_button)
-                    markup_builder.row(self._buttons.subscriptions, self._buttons.profile)
+                    markup_builder.row(
+                        self._buttons.invite_friend(
+                            bot_username=(await self.user).username,
+                            tg_id=call.from_user.id,
+                        ),
+                    )
+                    markup_builder.row(self._buttons.subscriptions(), self._buttons.profile)
 
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
@@ -398,43 +396,36 @@ class AiogramClient(aiogram.Dispatcher):
                         reply_markup=markup_builder.as_markup(),
                     )
                 case ["plans"]:
-                    plan_buttons = [
-                        getattr(self._buttons, f"plan_{plan_type.value}") for plan_type in models.PlansType
-                    ]
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    for buttons_row in itertools.batched(
-                            plan_buttons,
-                            data.Constants.ELEMENTS_PER_ROW,
-                    ):
-                        markup_builder.row(*buttons_row)
+
+                    markup_builder.row(
+                        *self._buttons.plan_buttons,
+                        width=data.Constants.ELEMENTS_PER_ROW,
+                    )
                     markup_builder.row(self._buttons.back_to_start)
 
                     # (TEXT_PENDING)
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
-                        text="Выберите тариф:",
+                        text="<b>Выбор тарифа:</b>",
                         reply_markup=markup_builder.as_markup(),
                     )
                 case ["add_funds"]:
-                    add_funds_buttons = [
-                        getattr(self._buttons, f"add_funds_{plan_type.value}") for plan_type in models.PlansType
-                    ]
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     markup_builder.row(self._buttons.add_funds_enter)
-                    for buttons_row in itertools.batched(
-                            add_funds_buttons,
-                            data.Constants.ELEMENTS_PER_ROW,
-                    ):
-                        markup_builder.row(*buttons_row)
+                    markup_builder.row(
+                        *self._buttons.add_funds_buttons,
+                        width=data.Constants.ELEMENTS_PER_ROW,
+                    )
                     markup_builder.row(self._buttons.back_to_start)
 
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=(
+                            "<b>Пополнение баланса:</b>\n"
+                            "\n"
                             "Выберите нужную сумму для\n"
                             "пополнения или введите свою:\n"
                         ),
@@ -448,27 +439,30 @@ class AiogramClient(aiogram.Dispatcher):
                     )
 
                     if current_subscriptions:
-                        _, page_buttons = self._buttons._get_page_buttons(
-                            page="subscriptions",
+                        subscription: models.SubscriptionValues
+
+                        _, page_buttons = self._buttons.get_page_buttons(
                             page_items=current_subscriptions,
-                            current_page_id=current_page_id,
+                            page="subscriptions",
+                            page_id=current_page_id,
                         )
 
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                        subscription: models.SubscriptionValues
-                        for subscription in list(
-                                itertools.batched(
-                                    current_subscriptions,
-                                    data.Constants.ELEMENTS_PER_PAGE,
-                                )
-                        )[current_page_id]:
-                            button = self._buttons.page_item_subscription.model_copy()
-                            button.text = button.text.format(
-                                subscription.subscription_id,
-                                self._data.plans.plans[subscription.plan_id].name,
-                            )
-                            button.callback_data = f"subscription {subscription.subscription_id}"
-                            markup_builder.row(button)
+                        markup_builder.row(
+                            *[
+                                self._buttons.page_item_subscription(
+                                    page="subscription",
+                                    plan_name=self._data.plans.get_plan_by_id(subscription.plan_id).name,
+                                    subscription_id=subscription.subscription_id,
+                                ) for subscription in list(
+                                    itertools.batched(
+                                        current_subscriptions,
+                                        data.Constants.ITEMS_PER_PAGE,
+                                    )
+                                )[current_page_id]
+                            ],
+                            width=data.Constants.ITEMS_PER_ROW,
+                        )
                         markup_builder.row(*page_buttons)
                         markup_builder.row(self._buttons.back_to_start)
 
@@ -476,7 +470,7 @@ class AiogramClient(aiogram.Dispatcher):
                         await self._bot.edit_message_text(
                             chat_id=call.message.chat.id,
                             message_id=call.message.message_id,
-                            text="Выберите подписку:",
+                            text="<b>Выбор подписки:</b>",
                             reply_markup=markup_builder.as_markup(),
                         )
                     else:
@@ -507,11 +501,11 @@ class AiogramClient(aiogram.Dispatcher):
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=(
-                                 f"Профиль {call.from_user.full_name}:\n"
+                                 f"<b>Профиль {call.from_user.full_name}:</b>\n"
                                  f"\n"
                                  f"<b>Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}</b>\n"
-                                 f"Активных подписок: {len(current_subscriptions)}\n"
-                                 f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
+                                 f"Активных подписок: <b>{len(current_subscriptions)}</b>\n"
+                                 f"Приглашено друзей: <b>{self._database.users.get_ref_count(tg_id=current_user.tg_id)}</b>\n"
                              ) + (
                                  f"\n"
                                  f"<b>Реферальные выплаты:</b>\n"
@@ -530,10 +524,10 @@ class AiogramClient(aiogram.Dispatcher):
                     )
                 case ["plan", current_plan_id]:
                     current_plan_id = int(current_plan_id)
-                    current_plan = self._data.plans.plans[current_plan_id]
+                    current_plan = self._data.plans.get_plan_by_id(current_plan_id)
 
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(getattr(self._buttons, f"plan_subscribe_{current_plan_id}"))
+                    markup_builder.row(self._buttons.plan_subscribe_buttons[current_plan_id])
                     markup_builder.row(self._buttons.back_to_plans)
 
                     await self._bot.edit_message_text(
@@ -543,7 +537,7 @@ class AiogramClient(aiogram.Dispatcher):
                             f"<b>Тариф «{current_plan.name}»</b>\n"
                             f"{current_plan.description}\n"
                             f"\n"
-                            f"Период подписки: {current_plan.months * data.Constants.DAYS_IN_MONTH} дней\n"
+                            f"Период подписки: <b>{current_plan.months * data.Constants.DAYS_IN_MONTH} дней</b>\n"
                             f"\n"
                             f"<b>(Текущий баланс: {self._config.payments.get_amount_with_currency(current_user.balance)})</b>\n"
                         ),
@@ -551,7 +545,7 @@ class AiogramClient(aiogram.Dispatcher):
                     )
                 case ["plan_subscribe", current_plan_id]:
                     current_plan_id = int(current_plan_id)
-                    current_plan = self._data.plans.plans[current_plan_id]
+                    current_plan = self._data.plans.get_plan_by_id(current_plan_id)
 
                     if current_plan.cost <= current_user.balance:
                         self._database.users.reduce_balance(
@@ -589,28 +583,25 @@ class AiogramClient(aiogram.Dispatcher):
                     else:
                         amount_diff = current_plan.cost - current_user.balance
 
-                        plan_add_funds_button = self._buttons.plan_add_funds.model_copy()
-                        plan_add_funds_button.text = plan_add_funds_button.text.format(
-                            self._config.payments.get_amount_with_currency(amount_diff),
-                        )
-                        plan_add_funds_button.callback_data = plan_add_funds_button.callback_data.format(
-                            amount_diff,
-                        )
-
-                        back_to_plan_button = self._buttons.back_to_plan.model_copy()
-                        back_to_plan_button.callback_data = back_to_plan_button.callback_data.format(
-                            current_plan_id,
-                        )
-
                         markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                        markup_builder.row(plan_add_funds_button)
-                        markup_builder.row(back_to_plan_button)
+                        markup_builder.row(
+                            self._buttons.plan_add_funds(
+                                amount=max(amount_diff, self._minimum_plan.cost),
+                            ),
+                        )
+                        markup_builder.row(
+                            self._buttons.back_to_plan(
+                                plan_id=current_plan_id,
+                            ),
+                        )
 
                         await self._bot.edit_message_text(
                             chat_id=call.message.chat.id,
                             message_id=call.message.message_id,
                             text=(
-                                f"Пополните баланс на {self._config.payments.get_amount_with_currency(amount=amount_diff)}\n"
+                                f"<b>Недостаточно средств!</b>\n"
+                                f"\n"
+                                f"Пополните баланс на <b>{self._config.payments.get_amount_with_currency(amount=amount_diff)}</b>\n"
                                 f"для подписки на «{current_plan.name}»!\n"
                             ),
                             reply_markup=markup_builder.as_markup(),
@@ -671,32 +662,30 @@ class AiogramClient(aiogram.Dispatcher):
                         subscription_id=current_subscription_id,
                     )
 
-                    subscription_config_button = self._buttons.subscription_config_data.model_copy()
-                    subscription_config_button.callback_data = subscription_config_button.callback_data.format(
-                        current_subscription.subscription_id,
-                    )
-
-                    subscription_switch_active_button = self._buttons.subscription_switch_active.model_copy()
-                    subscription_switch_active_button.text = "Отключить автопродление" if current_subscription.is_active else "Подключить автопродление"
-                    subscription_switch_active_button.callback_data = subscription_switch_active_button.callback_data.format(
-                        current_subscription_id,
-                    )
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(subscription_config_button)
-                    markup_builder.row(subscription_switch_active_button)
-                    markup_builder.row(self._buttons.back_to_subscriptions)
+                    markup_builder.row(
+                        self._buttons.subscription_config(
+                            subscription_id=current_subscription.subscription_id,
+                        ),
+                    )
+                    markup_builder.row(
+                        self._buttons.subscription_switch_active(
+                            status_text="Отключить автопродление" if current_subscription.is_active else "Подключить автопродление",
+                            subscription_id=current_subscription.subscription_id,
+                        ),
+                    )
+                    markup_builder.row(self._buttons.back_to_subscriptions())
 
                     await self._bot.edit_message_text(
                         chat_id=call.message.chat.id,
                         message_id=call.message.message_id,
                         text=(
                             f"<b>Подписка #{current_subscription.subscription_id}</b>\n"
-                            f"Тариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n"
+                            f"Тариф «{self._data.plans.get_plan_by_id(current_subscription.plan_id).name}»\n"
                             f"\n"
                             f"<b>Статус: {current_subscription.status}</b>\n"
-                            f"Подключена: {datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}\n"
-                            f"Истекает: {datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}\n"
+                            f"Подключена: <b>{datetime.datetime.fromtimestamp(current_subscription.subscribed_date).strftime("%d.%m.%y")}</b>\n"
+                            f"Истекает: <b>{datetime.datetime.fromtimestamp(current_subscription.expires_date).strftime("%d.%m.%y")}</b>\n"
                         ),
                         reply_markup=markup_builder.as_markup(),
                     )
@@ -713,8 +702,8 @@ class AiogramClient(aiogram.Dispatcher):
                         match call.data.split():
                             case ["admin"]:
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                                markup_builder.row(self._buttons.admin_users, self._buttons.admin_configs)
-                                markup_builder.row(self._buttons.admin_subscriptions, self._buttons.admin_payments)
+                                markup_builder.row(self._buttons.admin_users(), self._buttons.admin_configs())
+                                markup_builder.row(self._buttons.admin_subscriptions(), self._buttons.admin_payments())
                                 markup_builder.row(self._buttons.admin_logs, self._buttons.admin_settings)
 
                                 await self._bot.edit_message_text(
@@ -729,28 +718,31 @@ class AiogramClient(aiogram.Dispatcher):
                                 current_users = self._database.users.get_all_users()
 
                                 if current_users:
-                                    page_enter_button, page_buttons = self._buttons._get_page_buttons(
-                                        page="admin_users",
+                                    user: models.UserValues
+
+                                    page_enter_button, page_buttons = self._buttons.get_page_buttons(
                                         page_items=current_users,
-                                        current_page_id=current_page_id,
+                                        page="admin_users",
+                                        page_id=current_page_id,
                                     )
 
                                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                     markup_builder.row(page_enter_button)
-                                    user: models.UserValues
-                                    for user in list(
-                                            itertools.batched(
-                                                current_users,
-                                                data.Constants.ELEMENTS_PER_PAGE,
-                                            )
-                                    )[current_page_id]:
-                                        button = self._buttons.page_item_user.model_copy()
-                                        button.text = button.text.format(
-                                            user.tg_username,
-                                            user.tg_id,
-                                        )
-                                        button.callback_data = f"admin_user {user.tg_id}"
-                                        markup_builder.row(button)
+                                    markup_builder.row(
+                                        *[
+                                            self._buttons.page_item_user(
+                                                page="admin_user",
+                                                tg_username=user.tg_username,
+                                                tg_id=user.tg_id,
+                                            ) for user in list(
+                                                itertools.batched(
+                                                    current_users,
+                                                    data.Constants.ITEMS_PER_PAGE,
+                                                )
+                                            )[current_page_id]
+                                        ],
+                                        width=data.Constants.ITEMS_PER_ROW,
+                                    )
                                     markup_builder.row(*page_buttons)
                                     markup_builder.row(self._buttons.back_to_admin)
 
@@ -758,7 +750,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
                                         text=(
-                                            f"Выберите пользователя:\n"
+                                            f"<b>Выбор пользователя</b>\n"
                                             f"(Всего: {len(current_users)})\n"
                                         ),
                                         reply_markup=markup_builder.as_markup(),
@@ -784,39 +776,37 @@ class AiogramClient(aiogram.Dispatcher):
                                     tg_id=current_user_id,
                                 )
 
-                                admin_user_balance_enter_button = self._buttons.admin_user_balance_enter.model_copy()
-                                admin_user_balance_enter_button.callback_data = admin_user_balance_enter_button.callback_data.format(
-                                    current_user.tg_id,
-                                )
-
-                                admin_subscriptions_button = self._buttons.admin_subscriptions.model_copy()
-                                admin_subscriptions_button.callback_data = f"{admin_subscriptions_button.callback_data} {current_user_id}"
-
-                                admin_payments_button = self._buttons.admin_payments.model_copy()
-                                admin_payments_button.callback_data = f"{admin_payments_button.callback_data} {current_user_id}"
-
-                                admin_user_referral_button = self._buttons.admin_user_referral.model_copy()
-                                admin_user_referral_button.callback_data = admin_user_referral_button.callback_data.format(
-                                    referrer_user.tg_id if referrer_user else str(),
-                                )
-
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                                markup_builder.row(admin_user_balance_enter_button)
-                                markup_builder.row(admin_subscriptions_button)
-                                markup_builder.row(admin_payments_button)
+                                markup_builder.row(
+                                    self._buttons.admin_user_balance_enter(
+                                        tg_id=current_user.tg_id,
+                                    ),
+                                )
+                                markup_builder.row(
+                                    self._buttons.admin_subscriptions(
+                                        tg_id=current_user.tg_id,
+                                    ),
+                                )
+                                markup_builder.row(
+                                    self._buttons.admin_payments(
+                                        tg_id=current_user.tg_id,
+                                    ),
+                                )
                                 if referrer_user:
-                                    markup_builder.row(admin_user_referral_button)
+                                    markup_builder.row(
+                                        self._buttons.admin_user_referrer(tg_id=referrer_user.tg_id),
+                                    )
                                 markup_builder.row(self._buttons.back_to_admin)
 
                                 await self._bot.edit_message_text(
                                     chat_id=call.message.chat.id,
                                     message_id=call.message.message_id,
                                     text=(
-                                             f"Пользователь {current_user.tg_username} ({current_user.tg_id})\n"
+                                             f"<b>Пользователь {current_user.tg_username} ({current_user.tg_id})</b>\n"
                                              f"\n"
-                                             f"Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}\n"
-                                             f"Активных подписок: {len(current_subscriptions)}\n"
-                                             f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
+                                             f"<b>Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}</b>\n"
+                                             f"Активных подписок: <b>{len(current_subscriptions)}</b>\n"
+                                             f"Приглашено друзей: <b>{self._database.users.get_ref_count(tg_id=current_user.tg_id)}</b>\n"
                                          ) + (
                                              f"\n"
                                              f"<b>Реферальные выплаты:</b>\n"
@@ -825,7 +815,7 @@ class AiogramClient(aiogram.Dispatcher):
                                          ) + (
                                              (
                                                  f"\n"
-                                                 f"Пригласил: {referrer_user.tg_username} ({referrer_user.tg_id})\n"
+                                                 f"Пригласил: {referrer_user.tg_username if referrer_user.tg_username else f"<code>{referrer_user.tg_id}</code>"}\n"
                                              ) if referrer_user else str()
                                          ),
                                     reply_markup=markup_builder.as_markup(),
@@ -867,29 +857,32 @@ class AiogramClient(aiogram.Dispatcher):
                                 ) if current_user_id else self._database.subscriptions.get_all_subscriptions()
 
                                 if current_subscriptions:
-                                    page_enter_button, page_buttons = self._buttons._get_page_buttons(
-                                        page="admin_subscriptions",
+                                    subscription: models.SubscriptionValues
+
+                                    page_enter_button, page_buttons = self._buttons.get_page_buttons(
                                         page_items=current_subscriptions,
-                                        current_page_id=current_page_id,
-                                        current_user_id=current_user_id,
+                                        page="admin_subscriptions",
+                                        page_id=current_page_id,
+                                        tg_id=current_user_id,
                                     )
 
                                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                     markup_builder.row(page_enter_button)
-                                    subscription: models.SubscriptionValues
-                                    for subscription in list(
-                                            itertools.batched(
-                                                current_subscriptions,
-                                                data.Constants.ELEMENTS_PER_PAGE,
-                                            )
-                                    )[current_page_id]:
-                                        button = self._buttons.page_item_subscription.model_copy()
-                                        button.text = button.text.format(
-                                            subscription.subscription_id,
-                                            self._data.plans.plans[subscription.plan_id].name,
-                                        )
-                                        button.callback_data = f"admin_subscription {subscription.subscription_id}"
-                                        markup_builder.row(button)
+                                    markup_builder.row(
+                                        *[
+                                            self._buttons.page_item_subscription(
+                                                page="admin_subscription",
+                                                plan_name=self._data.plans.get_plan_by_id(subscription.plan_id).name,
+                                                subscription_id=subscription.subscription_id,
+                                            ) for subscription in list(
+                                                itertools.batched(
+                                                    current_subscriptions,
+                                                    data.Constants.ITEMS_PER_PAGE,
+                                                )
+                                            )[current_page_id]
+                                        ],
+                                        width=data.Constants.ITEMS_PER_ROW,
+                                    )
                                     markup_builder.row(*page_buttons)
                                     markup_builder.row(self._buttons.back_to_admin)
 
@@ -897,7 +890,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
                                         text=(
-                                            f"Выберите подписку:\n"
+                                            f"<b>Выбор подписки</b>\n"
                                             f"(Всего: {len(current_subscriptions)})\n"
                                         ),
                                         reply_markup=markup_builder.as_markup(),
@@ -925,26 +918,23 @@ class AiogramClient(aiogram.Dispatcher):
                                     tg_id=current_subscription.tg_id,
                                 )
 
-                                subscription_config_button = self._buttons.subscription_config_data.model_copy()
-                                subscription_config_button.callback_data = subscription_config_button.callback_data.format(
-                                    current_subscription.subscription_id,
-                                )
-
-                                admin_subscription_expire_button = self._buttons.admin_subscription_expire.model_copy()
-                                admin_subscription_expire_button.callback_data = admin_subscription_expire_button.callback_data.format(
-                                    current_subscription.subscription_id,
-                                )
-
-                                admin_user_button = self._buttons.admin_user.model_copy()
-                                admin_user_button.callback_data = admin_user_button.callback_data.format(
-                                    current_user.tg_id,
-                                )
-
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                 if current_subscription.expires_date > datetime.datetime.now().timestamp():
-                                    markup_builder.row(subscription_config_button)
-                                    markup_builder.row(admin_subscription_expire_button)
-                                markup_builder.row(admin_user_button)
+                                    markup_builder.row(
+                                        self._buttons.subscription_config(
+                                            subscription_id=current_subscription.subscription_id,
+                                        ),
+                                    )
+                                    markup_builder.row(
+                                        self._buttons.admin_subscription_expire(
+                                            subscription_id=current_subscription.subscription_id,
+                                        ),
+                                    )
+                                markup_builder.row(
+                                    self._buttons.admin_user(
+                                        tg_id=current_user.tg_id,
+                                    ),
+                                )
                                 markup_builder.row(self._buttons.back_to_admin)
 
                                 await self._bot.edit_message_text(
@@ -952,7 +942,7 @@ class AiogramClient(aiogram.Dispatcher):
                                     message_id=call.message.message_id,
                                     text=(
                                         f"Подписка #{current_subscription.subscription_id}\n"
-                                        f"Тариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n"
+                                        f"Тариф «{self._data.plans.get_plan_by_id(current_subscription.plan_id).name}»\n"
                                         f"\n"
                                         f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
                                         f"\n"
@@ -971,29 +961,32 @@ class AiogramClient(aiogram.Dispatcher):
                                 ) if current_user_id else self._database.payments.get_all_payments()
 
                                 if current_payments:
-                                    page_enter_button, page_buttons = self._buttons._get_page_buttons(
-                                        page="admin_payments",
+                                    payment: models.PaymentValues
+
+                                    page_enter_button, page_buttons = self._buttons.get_page_buttons(
                                         page_items=current_payments,
-                                        current_page_id=current_page_id,
-                                        current_user_id=current_user_id,
+                                        page="admin_payments",
+                                        page_id=current_page_id,
+                                        tg_id=current_user_id,
                                     )
 
                                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                                     markup_builder.row(page_enter_button)
-                                    for payment in list(
-                                            itertools.batched(
-                                                current_payments,
-                                                data.Constants.ELEMENTS_PER_PAGE,
-                                            )
-                                    )[current_page_id]:
-                                        payment: models.PaymentValues
-                                        button = self._buttons.page_item_payment.model_copy()
-                                        button.text = button.text.format(
-                                            payment.payment_id,
-                                            self._config.payments.get_amount_with_currency(payment.payment_amount),
-                                        )
-                                        button.callback_data = f"admin_payment {payment.payment_id}"
-                                        markup_builder.row(button)
+                                    markup_builder.row(
+                                        *[
+                                            self._buttons.page_item_payment(
+                                                page="admin_payment",
+                                                payment_amount=payment.payment_amount,
+                                                payment_id=payment.payment_id,
+                                            ) for payment in list(
+                                                itertools.batched(
+                                                    current_payments,
+                                                    data.Constants.ITEMS_PER_PAGE,
+                                                )
+                                            )[current_page_id]
+                                        ],
+                                        width=data.Constants.ITEMS_PER_ROW,
+                                    )
                                     markup_builder.row(*page_buttons)
                                     markup_builder.row(self._buttons.back_to_admin)
 
@@ -1001,7 +994,7 @@ class AiogramClient(aiogram.Dispatcher):
                                         chat_id=call.message.chat.id,
                                         message_id=call.message.message_id,
                                         text=(
-                                            f"Выберите платёж:\n"
+                                            f"<b>Выбор платежа</b>\n"
                                             f"Всего: ({len(current_payments)})\n"
                                         ),
                                         reply_markup=markup_builder.as_markup(),
@@ -1023,13 +1016,12 @@ class AiogramClient(aiogram.Dispatcher):
                                     tg_id=current_payment.tg_id,
                                 )
 
-                                admin_user_button = self._buttons.admin_user.model_copy()
-                                admin_user_button.callback_data = admin_user_button.callback_data.format(
-                                    current_user.tg_id,
-                                )
-
                                 markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                                markup_builder.row(admin_user_button)
+                                markup_builder.row(
+                                    self._buttons.admin_user(
+                                        tg_id=current_user.tg_id,
+                                    ),
+                                )
                                 markup_builder.row(self._buttons.back_to_admin)
 
                                 await self._bot.edit_message_text(
@@ -1112,7 +1104,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.users.add_user(
             tg_id=pre_checkout_query.from_user.id,
-            tg_username=f"@{pre_checkout_query.from_user.username}",
+            tg_username=pre_checkout_query.from_user.username,
             balance=int(),
             referrer_id=None,
         )
@@ -1216,7 +1208,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.users.add_user(
             tg_id=message.from_user.id,
-            tg_username=f"@{message.from_user.username}",
+            tg_username=message.from_user.username,
             balance=int(),
             referrer_id=None,
         )
@@ -1353,39 +1345,39 @@ class AiogramClient(aiogram.Dispatcher):
                         tg_id=current_user_id,
                     )
 
-                    admin_user_balance_enter_button = self._buttons.admin_user_balance_enter.model_copy()
-                    admin_user_balance_enter_button.callback_data = admin_user_balance_enter_button.callback_data.format(
-                        current_user.tg_id,
-                    )
-
-                    admin_subscriptions_button = self._buttons.admin_subscriptions.model_copy()
-                    admin_subscriptions_button.callback_data = f"{admin_subscriptions_button.callback_data} {current_user_id}"
-
-                    admin_payments_button = self._buttons.admin_payments.model_copy()
-                    admin_payments_button.callback_data = f"{admin_payments_button.callback_data} {current_user_id}"
-
-                    admin_user_referral_button = self._buttons.admin_user_referral.model_copy()
-                    admin_user_referral_button.callback_data = admin_user_referral_button.callback_data.format(
-                        referrer_user.tg_id if referrer_user else str(),
-                    )
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(admin_user_balance_enter_button)
-                    markup_builder.row(admin_subscriptions_button)
-                    markup_builder.row(admin_payments_button)
+                    markup_builder.row(
+                        self._buttons.admin_user_balance_enter(
+                            tg_id=current_user.tg_id,
+                        ),
+                    )
+                    markup_builder.row(
+                        self._buttons.admin_subscriptions(
+                            tg_id=current_user.tg_id,
+                        ),
+                    )
+                    markup_builder.row(
+                        self._buttons.admin_payments(
+                            tg_id=current_user.tg_id,
+                        ),
+                    )
                     if referrer_user:
-                        markup_builder.row(admin_user_referral_button)
+                        markup_builder.row(
+                            self._buttons.admin_user_referrer(
+                                tg_id=referrer_user.tg_id,
+                            ),
+                        )
                     markup_builder.row(self._buttons.back_to_admin)
 
                     await self._bot.send_message(
                         chat_id=message.chat.id,
                         message_thread_id=self._get_message_thread_id(message),
                         text=(
-                                 f"Пользователь {current_user.tg_username} ({current_user.tg_id})\n"
+                                 f"<b>Пользователь {current_user.tg_username} ({current_user.tg_id})</b>\n"
                                  f"\n"
-                                 f"Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}\n"
-                                 f"Активных подписок: {len(current_subscriptions)}\n"
-                                 f"Приглашено друзей: {self._database.users.get_ref_count(tg_id=current_user.tg_id)}\n"
+                                 f"<b>Баланс: {self._config.payments.get_amount_with_currency(current_user.balance)}</b>\n"
+                                 f"Активных подписок: <b>{len(current_subscriptions)}</b>\n"
+                                 f"Приглашено друзей: <b>{self._database.users.get_ref_count(tg_id=current_user.tg_id)}</b>\n"
                              ) + (
                                  f"\n"
                                  f"<b>Реферальные выплаты:</b>\n"
@@ -1394,7 +1386,7 @@ class AiogramClient(aiogram.Dispatcher):
                              ) + (
                                  (
                                      f"\n"
-                                     f"Пригласил: {referrer_user.tg_username} ({referrer_user.tg_id})\n"
+                                     f"Пригласил: {referrer_user.tg_username if referrer_user.tg_username else f"<code>{referrer_user.tg_id}</code>"}\n"
                                  ) if referrer_user else str()
                              ),
                         reply_markup=markup_builder.as_markup(),
@@ -1412,26 +1404,23 @@ class AiogramClient(aiogram.Dispatcher):
                         tg_id=current_subscription.tg_id,
                     )
 
-                    subscription_config_button = self._buttons.subscription_config_data.model_copy()
-                    subscription_config_button.callback_data = subscription_config_button.callback_data.format(
-                        current_subscription.subscription_id,
-                    )
-
-                    admin_subscription_expire_button = self._buttons.admin_subscription_expire.model_copy()
-                    admin_subscription_expire_button.callback_data = admin_subscription_expire_button.callback_data.format(
-                        current_subscription.subscription_id,
-                    )
-
-                    admin_user_button = self._buttons.admin_user.model_copy()
-                    admin_user_button.callback_data = admin_user_button.callback_data.format(
-                        current_user.tg_id,
-                    )
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
                     if current_subscription.expires_date > datetime.datetime.now().timestamp():
-                        markup_builder.row(subscription_config_button)
-                        markup_builder.row(admin_subscription_expire_button)
-                    markup_builder.row(admin_user_button)
+                        markup_builder.row(
+                            self._buttons.subscription_config(
+                                subscription_id=current_subscription.subscription_id,
+                            ),
+                        )
+                        markup_builder.row(
+                            self._buttons.admin_subscription_expire(
+                                subscription_id=current_subscription.subscription_id,
+                            ),
+                        )
+                    markup_builder.row(
+                        self._buttons.admin_user(
+                            tg_id=current_user.tg_id,
+                        ),
+                    )
                     markup_builder.row(self._buttons.back_to_admin)
 
                     await self._bot.send_message(
@@ -1439,7 +1428,7 @@ class AiogramClient(aiogram.Dispatcher):
                         message_thread_id=self._get_message_thread_id(message),
                         text=(
                             f"Подписка #{current_subscription.subscription_id}\n"
-                            f"Тариф «{self._data.plans.plans[current_subscription.plan_id].name}»\n"
+                            f"Тариф «{self._data.plans.get_plan_by_id(current_subscription.plan_id).name}»\n"
                             f"\n"
                             f"Пользователь: {current_user.tg_username} ({current_user.tg_id})\n"
                             f"\n"
@@ -1460,13 +1449,12 @@ class AiogramClient(aiogram.Dispatcher):
                         tg_id=current_payment.tg_id,
                     )
 
-                    admin_user_button = self._buttons.admin_user.model_copy()
-                    admin_user_button.callback_data = admin_user_button.callback_data.format(
-                        current_user.tg_id,
-                    )
-
                     markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
-                    markup_builder.row(admin_user_button)
+                    markup_builder.row(
+                        self._buttons.admin_user(
+                            tg_id=current_user.tg_id,
+                        ),
+                    )
                     markup_builder.row(self._buttons.back_to_admin)
 
                     await self._bot.send_message(

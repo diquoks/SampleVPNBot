@@ -9,7 +9,8 @@ import models
 
 class Constants:
     DAYS_IN_MONTH = 30
-    ELEMENTS_PER_PAGE = 5
+    ITEMS_PER_PAGE = 5
+    ITEMS_PER_ROW = 1
     ELEMENTS_PER_ROW = 2
     FIRST_PAGE_ID = 0
     MINIMUM_PLAN = models.PlansType.MONTH
