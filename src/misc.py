@@ -164,6 +164,10 @@ class ButtonsContainer:
 
         # region page
 
+        self.page_enter = aiogram.types.InlineKeyboardButton(
+            text="Ввести ID элемента",
+            callback_data="{0}_enter",
+        )
         self.page_previous = aiogram.types.InlineKeyboardButton(
             text="<",
             callback_data=str(),
@@ -247,12 +251,20 @@ class ButtonsContainer:
             current_user_id: int | None = None,
     ) -> tuple[
         aiogram.types.InlineKeyboardButton,
-        aiogram.types.InlineKeyboardButton,
-        aiogram.types.InlineKeyboardButton,
+        tuple[
+            aiogram.types.InlineKeyboardButton,
+            aiogram.types.InlineKeyboardButton,
+            aiogram.types.InlineKeyboardButton,
+        ],
     ]:
         previous_page_id = current_page_id - 1
         next_page_id = current_page_number = current_page_id + 1
         total_pages_count = math.ceil(len(page_items) / data.Constants.ELEMENTS_PER_PAGE)
+
+        page_enter_button = self.page_enter.model_copy()
+        page_enter_button.callback_data = page_enter_button.callback_data.format(
+            page,
+        )
 
         page_previous_button = self.page_previous.model_copy()
         page_previous_button.callback_data = " ".join(i for i in [
@@ -279,4 +291,11 @@ class ButtonsContainer:
             str(current_user_id) if current_user_id else str(),
         ] if i) if next_page_id < total_pages_count else "just_answer"
 
-        return page_previous_button, page_info_button, page_next_button
+        return (
+            page_enter_button,
+            (
+                page_previous_button,
+                page_info_button,
+                page_next_button,
+            ),
+        )
