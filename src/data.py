@@ -1,22 +1,8 @@
 from __future__ import annotations
-import datetime
 import aiogram
 import pyquoks.data, pyquoks.utils
-import models
+import models, utils
 
-
-# region Constants
-
-class Constants:
-    DAYS_IN_MONTH = 30
-    ITEMS_PER_PAGE = 5
-    ITEMS_PER_ROW = 1
-    ELEMENTS_PER_ROW = 2
-    FIRST_PAGE_ID = 0
-    MINIMUM_PLAN = models.PlansType.MONTH
-
-
-# endregion
 
 # region Providers
 
@@ -60,6 +46,9 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         file_logging: bool
         skip_updates: bool
 
+        def is_admin(self, tg_id) -> bool:
+            return tg_id in self.admin_list
+
     _CONFIG_VALUES = {
         "Payments":
             {
@@ -93,6 +82,220 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
     settings: SettingsConfig
 
 
+class StringsProvider(pyquoks.data.IStringsProvider):
+    class AlertStrings(pyquoks.data.IStringsProvider.IStrings):
+
+        # region add_funds
+
+        @property
+        def add_funds_enter_unavailable(self) -> str:
+            return "Сейчас вы не можете выбрать сумму пополнения!"
+
+        @property
+        def add_funds_unavailable(self) -> str:
+            return "Сумма пополнения выходит за доступные пределы!"
+
+        # endregion
+
+        # region subscriptions
+
+        @property
+        def subscriptions_unavailable(self) -> str:
+            return "У вас нет активных подписок!"
+
+        # endregion
+
+        @property
+        def button_unavailable(self) -> str:
+            return "Эта кнопка недоступна!"
+
+    class MenuStrings(pyquoks.data.IStringsProvider.IStrings):
+        def __init__(self):
+            self._data = DataProvider()
+            self._config = ConfigProvider()
+
+        # region /start
+
+        @staticmethod
+        def start(bot_full_name: str) -> str:
+            return (
+                f"<b>Добро пожаловать в {bot_full_name}!</b>\n"
+                f"\n"
+                f"Благодарим за выбор нашего сервиса,\n"
+                f"ваша безопасность — наш приоритет!\n"
+            )
+
+        @property
+        def plans(self) -> str:
+            # (TEXT_PENDING)
+            return "<b>Выбор тарифа:</b>"
+
+        @property
+        def add_funds(self) -> str:
+            return (
+                "<b>Пополнение баланса:</b>\n"
+                "\n"
+                "Выберите нужную сумму для\n"
+                "пополнения или введите свою:\n"
+            )
+
+        @property
+        def subscriptions(self) -> str:
+            # (TEXT_PENDING)
+            return "<b>Выбор подписки:</b>"
+
+        def profile(
+                self,
+                user: models.UserValues,
+                referrer_model: models.Referrer | ConfigProvider.ReferralConfig,
+                referrer_user: models.UserValues | None,
+                subscriptions_count: int,
+                friends_count: int,
+        ) -> str:
+            return (
+                f"<b>Профиль {referrer_user.html_text()}:</b>\n"
+                f"\n"
+                f"<b>Баланс: {self._config.payments.get_amount_with_currency(user.balance)}</b>\n"
+                f"Активных подписок: <b>{subscriptions_count}</b>\n"
+                f"Приглашено друзей: <b>{friends_count}</b>\n"
+                f"\n"
+                f"<b>Реферальные выплаты:</b>\n"
+                f"Первое пополнение: <b>{referrer_model.multiplier_first:.0%}</b>\n"
+                f"Следующие пополнения: <b>{referrer_model.multiplier_common:.0%}</b>\n"
+            ) + (
+                (
+                    f"\n"
+                    f"Пригласил: <b>{referrer_user.html_text()}</b>\n"
+                ) if referrer_user else str()
+            )
+
+        # endregion
+
+        # region plans
+
+        def plan(self, user: models.UserValues, plan: models.Plan) -> str:
+            return (
+                f"<b>Тариф «{plan.name}»</b>\n"
+                f"{plan.description}\n"
+                f"\n"
+                f"Период подписки: <b>{plan.days} дней</b>\n"
+                f"\n"
+                f"<b>(Текущий баланс: {self._config.payments.get_amount_with_currency(user.balance)})</b>\n"
+            )
+
+        def plan_subscribe_unavailable(self, current_plan: models.Plan, amount: int) -> str:
+            return (
+                f"<b>Недостаточно средств!</b>\n"
+                f"\n"
+                f"Пополните баланс на <b>{self._config.payments.get_amount_with_currency(amount)}</b>\n"
+                f"для подписки на «{current_plan.name}»!\n"
+            )
+
+        # endregion
+
+        # region add_funds
+
+        @property
+        def add_funds_title(self) -> str:
+            return "Пополнение баланса"
+
+        def add_funds_description(self, amount: int) -> str:
+            return f"Счёт на сумму {self._config.payments.get_amount_with_currency(amount)}"
+
+        @staticmethod
+        def add_funds_enter(min_amount: int, max_amount: int) -> str:
+            return (
+                f"Введите сумму, на которую\n"
+                f"хотите пополнить баланс\n"
+                f"<b>(число от {min_amount} до {max_amount}):</b>\n"
+            )
+
+        @staticmethod
+        def add_funds_enter_error(min_amount: int, max_amount: int) -> str:
+            return (
+                f"<b>Сумма пополнения должна\n"
+                f"быть числом от {min_amount} до {max_amount}!</b>\n"
+                f"\n"
+                f"Введите сумму, на которую\n"
+                f"хотите пополнить баланс:\n"
+            )
+
+        def add_funds_success(self, amount: int) -> str:
+            return f"Баланс пополнен на {self._config.payments.get_amount_with_currency(amount)}!"
+
+        # endregion
+
+        # region subscriptions
+
+        def subscription(self, subscription: models.SubscriptionValues) -> str:
+            current_plan = self._data.plans.get_plan_by_id(
+                plan_id=subscription.plan_id,
+            )
+
+            return (
+                f"<b>Подписка #{subscription.subscription_id}</b>\n"
+                f"Тариф «{current_plan.name}»\n"
+                f"\n"
+                f"<b>Статус: {subscription.status}</b>\n"
+                f"Подключена: <b>{utils.get_formatted_timestamp(subscription.subscribed_date)}</b>\n"
+                f"Истекает: <b>{utils.get_formatted_timestamp(subscription.expires_date)}</b>\n"
+            )
+
+        @property
+        def subscription_config_file(self) -> str:
+            return (
+                "Ваш файл конфигурации\n"
+                "доступен для скачивания!\n"
+            )
+
+        @staticmethod
+        def subscription_config_copy(config_key: str) -> str:
+            return (
+                f"Ключ для подключения:\n"
+                f"<pre>{config_key}</pre>\n"
+            )
+
+        # endregion
+
+        # region /admin
+
+        @staticmethod
+        def admin(tg_full_name: str) -> str:
+            return (
+                f"<b>Меню администратора</b>\n"
+                f"\n"
+                f"Добро пожаловать, {tg_full_name}!\n"
+            )
+
+        # endregion
+
+    class StatusStrings(pyquoks.data.IStringsProvider.IStrings):
+
+        # region subscriptions
+
+        @property
+        def _subscription_disable_renewal(self) -> str:
+            return "Отключить автопродление"
+
+        @property
+        def _subscription_enable_renewal(self) -> str:
+            return "Подключить автопродление"
+
+        def subscription_renewal(self, is_active: bool) -> str:
+            return self._subscription_disable_renewal if is_active else self._subscription_enable_renewal
+
+        # endregion
+
+    _STRINGS_OBJECTS = {
+        "alert": AlertStrings,
+        "menu": MenuStrings,
+        "status": StatusStrings,
+    }
+    alert: AlertStrings
+    menu: MenuStrings
+    status: StatusStrings
+
+
 # endregion
 
 # region Managers
@@ -120,7 +323,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 payment_payload: str,
                 payment_provider_id: str | None,
                 payment_date: int,
-        ) -> None:
+        ) -> models.PaymentValues | None:
             cursor = self.cursor()
 
             cursor.execute(
@@ -139,6 +342,17 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             )
 
             self.commit()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE rowid = ?
+                """,
+                (cursor.lastrowid,),
+            )
+            result = cursor.fetchone()
+            return models.PaymentValues(
+                **dict(result),
+            ) if result else None
 
         def get_payment(self, payment_id: int) -> models.PaymentValues | None:
             cursor = self.cursor()
@@ -302,7 +516,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
 
             return list(
                 filter(
-                    lambda subscription: subscription.expires_date > datetime.datetime.now().timestamp(),
+                    lambda subscription: not subscription.is_expired,
                     subscriptions,
                 )
             )
@@ -346,7 +560,13 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         )
         """
 
-        def add_user(self, tg_id: int, tg_username: str | None, balance: int, referrer_id: int | None) -> None:
+        def add_user(
+                self,
+                tg_id: int,
+                tg_username: str | None,
+                balance: int,
+                referrer_id: int | None,
+        ) -> models.UserValues | None:
             cursor = self.cursor()
 
             cursor.execute(
@@ -363,6 +583,17 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
             )
 
             self.commit()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE rowid = ?
+                """,
+                (cursor.lastrowid,),
+            )
+            result = cursor.fetchone()
+            return models.UserValues(
+                **dict(result),
+            ) if result else None
 
         def get_user(self, tg_id: int) -> models.UserValues | None:
             cursor = self.cursor()

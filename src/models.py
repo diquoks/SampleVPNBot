@@ -1,6 +1,7 @@
 from __future__ import annotations
 import datetime, enum
 import pyquoks.models
+import constants
 
 
 # region Enums
@@ -32,6 +33,10 @@ class Plan(pyquoks.models.IModel):
     def cost(self) -> int:
         return self.price * self.months
 
+    @property
+    def days(self) -> int:
+        return self.months * constants.DAYS_IN_MONTH
+
 
 class PlansContainer(pyquoks.models.IContainer):
     _DATA = {
@@ -41,6 +46,12 @@ class PlansContainer(pyquoks.models.IContainer):
 
     def get_plan_by_id(self, plan_id: int) -> Plan:
         return self.plans[plan_id]
+
+    @property
+    def minimum_plan(self) -> Plan:
+        return self.get_plan_by_id(
+            plan_id=constants.MINIMUM_PLAN_ID,
+        )
 
 
 class Referrer(pyquoks.models.IModel):
@@ -114,8 +125,12 @@ class SubscriptionValues(pyquoks.models.IValues):
     is_active: int | None
 
     @property
+    def is_expired(self) -> bool:
+        return self.expires_date < datetime.datetime.now().timestamp()
+
+    @property
     def status(self) -> str:
-        return "Истекла" if datetime.datetime.now().timestamp() > self.expires_date else "Активна" if self.is_active else "Отменена"
+        return "Истекла" if self.is_expired else "Активна" if self.is_active else "Отменена"
 
 
 class UserValues(pyquoks.models.IValues):
@@ -129,5 +144,21 @@ class UserValues(pyquoks.models.IValues):
     tg_username: str | None
     balance: int | None
     referrer_id: int | None
+
+    def html_text(self, show_id: bool = False) -> str:
+        return " ".join(
+            i for i in [
+                f"@{self.tg_username}",
+                f"(<code>{self.tg_id}</code>)" if show_id else str(),
+            ] if i
+        ) if self.tg_username else f"<code>{self.tg_id}</code>"
+
+    def text(self, show_id: bool = False) -> str:
+        return " ".join(
+            i for i in [
+                f"@{self.tg_username}",
+                f"({self.tg_id})" if show_id else str(),
+            ] if i
+        ) if self.tg_username else str(self.tg_id)
 
 # endregion
