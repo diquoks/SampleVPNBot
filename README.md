@@ -1,4 +1,4 @@
-﻿# VastNetVPNBot
+﻿# SampleVPNBot
 
 #### Ты думал тут что-то будет?
 
@@ -25,7 +25,6 @@
 
 #### Прочие ссылки
 
-- [Бот в Telegram](https://t.me/vastnetvpnbot)
 - [Telegram-канал с новостями](https://t.me/diquoks_channel)
 
 ---
@@ -43,13 +42,13 @@
 ##### Клонируйте репозиторий git
 
 ```bash
-git clone https://github.com/diquoks/VastNetVPNBot.git
+git clone https://github.com/diquoks/SampleVPNBot.git
 ```
 
 ##### Перейдите в корневую директорию
 
 ```bash
-cd VastNetVPNBot
+cd SampleVPNBot
 ```
 
 ##### Установите зависимости
@@ -70,7 +69,7 @@ cd src
 python main.py
 ```
 
-##### Заполните `VastNetVPNBot/src/config.ini` и следуйте инструкциям для [Docker](#docker)
+##### Заполните `SampleVPNBot/src/config.ini` и следуйте инструкциям для [Docker](#docker)
 
 ### Docker
 
@@ -83,11 +82,11 @@ cd ../
 ##### Создайте образ
 
 ```bash
-docker build -t vastnetvpnbot .
+docker build -t samplevpnbot .
 ```
 
 ##### Запустите контейнер
 
 ```bash
-docker run -it -d --name VastNetVPNBot vastnetvpnbot
+docker run -it -d --name SampleVPNBot samplevpnbot
 ```

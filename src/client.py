@@ -37,7 +37,7 @@ class AiogramClient(aiogram.Dispatcher):
                 parse_mode=aiogram.enums.ParseMode.HTML,
             ),
         )
-        super().__init__(name="VastNetVPNDispatcher")
+        super().__init__(name="AiogramClientDispatcher")
         self.include_router(self._states_router)
 
         self.errors.register(
