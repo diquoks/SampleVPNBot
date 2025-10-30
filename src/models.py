@@ -145,20 +145,12 @@ class UserValues(pyquoks.models.IValues):
     balance: int | None
     referrer_id: int | None
 
-    def html_text(self, show_id: bool = False) -> str:
-        return " ".join(
-            i for i in [
-                f"@{self.tg_username}",
-                f"(<code>{self.tg_id}</code>)" if show_id else str(),
-            ] if i
-        ) if self.tg_username else f"<code>{self.tg_id}</code>"
+    @property
+    def html_text(self) -> str:
+        return f"@{self.tg_username} (<code>{self.tg_id}</code>)" if self.tg_username else str(self.tg_id)
 
-    def text(self, show_id: bool = False) -> str:
-        return " ".join(
-            i for i in [
-                f"@{self.tg_username}",
-                f"({self.tg_id})" if show_id else str(),
-            ] if i
-        ) if self.tg_username else str(self.tg_id)
+    @property
+    def text(self) -> str:
+        return f"@{self.tg_username} ({self.tg_id})" if self.tg_username else str(self.tg_id)
 
 # endregion

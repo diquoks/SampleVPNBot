@@ -315,9 +315,7 @@ class ButtonsContainer:
     @staticmethod
     def page_item_user(page: str, user: models.UserValues) -> aiogram.types.InlineKeyboardButton:
         return aiogram.types.InlineKeyboardButton(
-            text=user.text(
-                show_id=True,
-            ),
+            text=user.text,
             callback_data=f"{page} {user.tg_id}",
         )
 

@@ -105,6 +105,22 @@ class StringsProvider(pyquoks.data.IStringsProvider):
 
         # endregion
 
+        # region /admin
+
+        @property
+        def admin_subscriptions_unavailable(self) -> str:
+            return "Купленные подписки отсутствуют!"
+
+        @property
+        def admin_payments_unavailable(self) -> str:
+            return "Совершённые платежи отсутствуют!"
+
+        @property
+        def admin_logs_unavailable(self) -> str:
+            return "Логирование отключено!"
+
+        # endregion
+
         @property
         def button_unavailable(self) -> str:
             return "Эта кнопка недоступна!"
@@ -153,7 +169,7 @@ class StringsProvider(pyquoks.data.IStringsProvider):
                 friends_count: int,
         ) -> str:
             return (
-                f"<b>Профиль {referrer_user.html_text()}:</b>\n"
+                f"<b>Профиль {user.html_text}:</b>\n"
                 f"\n"
                 f"<b>Баланс: {self._config.payments.get_amount_with_currency(user.balance)}</b>\n"
                 f"Активных подписок: <b>{subscriptions_count}</b>\n"
@@ -165,7 +181,7 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             ) + (
                 (
                     f"\n"
-                    f"Пригласил: <b>{referrer_user.html_text()}</b>\n"
+                    f"Пригласил: <b>{referrer_user.html_text}</b>\n"
                 ) if referrer_user else str()
             )
 
@@ -203,31 +219,27 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             return f"Счёт на сумму {self._config.payments.get_amount_with_currency(amount)}"
 
         @staticmethod
-        def add_funds_enter(min_amount: int, max_amount: int) -> str:
+        def add_funds_enter(min_amount: int, max_amount: int, error: bool = False) -> str:
             return (
-                f"Введите сумму, на которую\n"
-                f"хотите пополнить баланс\n"
-                f"<b>(число от {min_amount} до {max_amount}):</b>\n"
-            )
-
-        @staticmethod
-        def add_funds_enter_error(min_amount: int, max_amount: int) -> str:
-            return (
-                f"<b>Сумма пополнения должна\n"
-                f"быть числом от {min_amount} до {max_amount}!</b>\n"
-                f"\n"
+                (
+                    f"<b>Сумма пополнения выходит\n"
+                    f"за доступные пределы!</b>\n"
+                    f"\n"
+                ) if error else str()
+            ) + (
                 f"Введите сумму, на которую\n"
                 f"хотите пополнить баланс:\n"
+                f"<b>(число от {min_amount} до {max_amount})</b>\n"
             )
 
         def add_funds_success(self, amount: int) -> str:
-            return f"Баланс пополнен на {self._config.payments.get_amount_with_currency(amount)}!"
+            return f"Баланс пополнен на <b>{self._config.payments.get_amount_with_currency(amount)}</b>!"
 
         # endregion
 
         # region subscriptions
 
-        def subscription(self, subscription: models.SubscriptionValues) -> str:
+        def subscription(self, subscription: models.SubscriptionValues, user: models.UserValues = None) -> str:
             current_plan = self._data.plans.get_plan_by_id(
                 plan_id=subscription.plan_id,
             )
@@ -239,6 +251,11 @@ class StringsProvider(pyquoks.data.IStringsProvider):
                 f"<b>Статус: {subscription.status}</b>\n"
                 f"Подключена: <b>{utils.get_formatted_timestamp(subscription.subscribed_date)}</b>\n"
                 f"Истекает: <b>{utils.get_formatted_timestamp(subscription.expires_date)}</b>\n"
+            ) + (
+                (
+                    f"\n"
+                    f"Пользователь: {user.html_text}\n"
+                ) if user else str()
             )
 
         @property
@@ -265,6 +282,79 @@ class StringsProvider(pyquoks.data.IStringsProvider):
                 f"<b>Меню администратора</b>\n"
                 f"\n"
                 f"Добро пожаловать, {tg_full_name}!\n"
+            )
+
+        @staticmethod
+        def admin_users(users_count: int) -> str:
+            return (
+                f"<b>Выберите пользователя:</b>\n"
+                f"(Всего: {users_count})\n"
+            )
+
+        @staticmethod
+        def admin_user_balance_enter(current_user: models.UserValues, max_balance: int, error: bool = False) -> str:
+            return (
+                (
+                    f"<b>Баланс должен быть числом!</b>\n"
+                    f"\n"
+                ) if error else str()
+            ) + (
+                f"Введите новый баланс для\n"
+                f"{current_user.html_text}:\n"
+                f"(Сейчас: {current_user.balance}/{max_balance})\n"
+            )
+
+        def admin_user_balance_enter_success(self, current_user: models.UserValues) -> str:
+            return (
+                f"<b>Баланс изменён!</b>\n"
+                f"<b>{self._config.payments.get_amount_with_currency(current_user.balance)}</b> | {current_user.html_text})\n"
+            )
+
+        @staticmethod
+        def admin_subscriptions(subscriptions_count: int) -> str:
+            return (
+                f"<b>Выберите подписку:</b>\n"
+                f"(Всего: {subscriptions_count})\n"
+            )
+
+        @staticmethod
+        def admin_payments(payments_count: int) -> str:
+            return (
+                f"<b>Выберите платёж:</b>\n"
+                f"(Всего: {payments_count})\n"
+            )
+
+        @staticmethod
+        def admin_payment(payment: models.PaymentValues, user: models.UserValues) -> str:
+            return (
+                f"<b>Платёж #{payment.payment_id}</b>\n"
+                f"\n"
+                f"<b>Информация: «{payment.payment_payload}»</b>\n"
+                f"Сумма: <b>{payment.payment_amount} {payment.payment_currency}</b>\n"
+                f"Совершён: <b>{utils.get_formatted_timestamp(payment.payment_date)}</b>\n"
+            ) + (
+                (
+                    f"\n"
+                    f"ID платежа: <code>{payment.payment_provider_id}</code>\n"
+                ) if payment.payment_provider_id else str()
+            ) + (
+                f"\n"
+                f"Пользователь: {user.html_text}\n"
+            )
+
+        # endregion
+
+        # region page
+
+        @staticmethod
+        def admin_page_enter(error: bool = False) -> str:
+            return (
+                (
+                    "<b>Элемент с выбранным ID не найден!</b>\n"
+                    "\n"
+                ) if error else str()
+            ) + (
+                "Введите ID элемента:\n"
             )
 
         # endregion
