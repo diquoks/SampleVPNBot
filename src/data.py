@@ -32,11 +32,20 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         multiplier_common: float
         multiplier_first: float
 
+        @property
+        def referrer(self) -> models.Referrer:
+            return models.Referrer(
+                json_data={
+                    "multiplier_common": self.multiplier_common,
+                    "multiplier_first": self.multiplier_first,
+                }
+            )
+
         def get_referrer_model(
                 self,
                 referrer: models.Referrer | None
-        ) -> models.Referrer | ConfigProvider.ReferralConfig:
-            return referrer if referrer else self
+        ) -> models.Referrer:
+            return referrer if referrer else self.referrer
 
     class SettingsConfig(pyquoks.data.IConfigProvider.IConfig):
         _SECTION = "Settings"
@@ -234,6 +243,19 @@ class StringsProvider(pyquoks.data.IStringsProvider):
 
         def add_funds_success(self, amount: int) -> str:
             return f"Баланс пополнен на <b>{self._config.payments.get_amount_with_currency(amount)}</b>!"
+
+        def add_funds_referrer(
+                self,
+                user: models.UserValues,
+                amount: int,
+                referrer_bonus_amount: int,
+                referrer_multiplier: float,
+        ) -> str:
+            return (
+                f"<b>{self._config.payments.get_amount_with_currency(amount)}</b> | {user.html_text}\n"
+                f"\n"
+                f"Ваш бонус: <b>{self._config.payments.get_amount_with_currency(referrer_bonus_amount)}</b> ({referrer_multiplier:.0%})"
+            )
 
         # endregion
 

@@ -1150,9 +1150,9 @@ class AiogramClient(aiogram.Dispatcher):
                 ),
             )
 
-            referrer_bonus_amount = int(
-                payment_amount * referrer_model.multiplier_first if is_first_payment else referrer_model.multiplier_common
-            )
+            referrer_multiplier = referrer_model.get_referrer_multiplier(is_first_payment)
+
+            referrer_bonus_amount = int(payment_amount * referrer_multiplier)
 
             self._database.payments.add_payment(
                 tg_id=referrer_user.tg_id,
@@ -1167,6 +1167,24 @@ class AiogramClient(aiogram.Dispatcher):
                 tg_id=referrer_user.tg_id,
                 amount=referrer_bonus_amount,
             )
+
+            try:
+                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                markup_builder.row(self._buttons.view_start)
+
+                await self._bot.send_message(
+                    chat_id=referrer_user.tg_id,
+                    text=self._strings.menu.add_funds_referrer(
+                        user=current_user,
+                        amount=payment_amount,
+                        referrer_bonus_amount=referrer_bonus_amount,
+                        referrer_multiplier=referrer_multiplier,
+                    ),
+                    reply_markup=markup_builder.as_markup(),
+                )
+            except Exception as e:
+                if type(e) not in [aiogram.exceptions.TelegramBadRequest, aiogram.exceptions.TelegramRetryAfter]:
+                    self._logger.log_exception(e)
 
         try:
             markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()

@@ -64,6 +64,9 @@ class Referrer(pyquoks.models.IModel):
     multiplier_common: float | None
     multiplier_first: float | None
 
+    def get_referrer_multiplier(self, is_first_payment: bool) -> float | None:
+        return self.multiplier_first if is_first_payment else self.multiplier_common
+
 
 class ReferrersContainer(pyquoks.models.IContainer):
     _DATA = {
