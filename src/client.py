@@ -96,6 +96,7 @@ class AiogramClient(aiogram.Dispatcher):
             ),
         )
 
+        self._date_started = datetime.datetime.now(datetime.timezone.utc)
         self._logger.info(f"{self.name} initialized!")
 
     # region Properties and helpers
@@ -146,6 +147,10 @@ class AiogramClient(aiogram.Dispatcher):
             await self.start_polling(self._bot)
         except Exception as e:
             self._logger.log_exception(e)
+
+    async def terminate_polling(self) -> None:
+        await self.stop_polling()
+        await self._bot.close()
 
     async def delete_and_send_start(self, call: aiogram.types.CallbackQuery) -> None:
         current_user = self._database.users.get_user(
@@ -1059,7 +1064,29 @@ class AiogramClient(aiogram.Dispatcher):
                                 )
 
                                 await state.set_state(getattr(self._states, call.data))
-                            # TODO: `case ["admin_settings"]:`
+                            case ["admin_settings"]:
+                                current_users = self._database.users.get_all_users()
+                                current_subscriptions = self._database.subscriptions.get_all_subscriptions()
+                                current_payments = self._database.payments.get_all_payments()
+
+                                markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                                markup_builder.row(self._buttons.admin_settings_stop)
+                                markup_builder.row(self._buttons.back_to_admin)
+
+                                await self._bot.edit_message_text(
+                                    chat_id=call.message.chat.id,
+                                    message_id=call.message.message_id,
+                                    text=self._strings.menu.admin_settings(
+                                        bot=(await self.user),
+                                        users_count=len(current_users),
+                                        subscriptions_count=len(current_subscriptions),
+                                        payments_count=len(current_payments),
+                                        date_started=self._date_started,
+                                    ),
+                                    reply_markup=markup_builder.as_markup(),
+                                )
+                            case ["admin_settings_stop"]:
+                                await self.terminate_polling()
                             case _:
                                 await self._bot.answer_callback_query(
                                     callback_query_id=call.id,

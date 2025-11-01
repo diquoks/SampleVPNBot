@@ -1,5 +1,6 @@
 from __future__ import annotations
-import aiogram
+import datetime
+import aiogram, aiogram.types
 import pyquoks.data, pyquoks.utils
 import models, utils
 
@@ -200,7 +201,7 @@ class StringsProvider(pyquoks.data.IStringsProvider):
 
         def plan(self, user: models.UserValues, plan: models.Plan) -> str:
             return (
-                f"<b>Тариф «{plan.name}»</b>\n"
+                f"<b>Тариф «{plan.name}»:</b>\n"
                 f"{plan.description}\n"
                 f"\n"
                 f"Период подписки: <b>{plan.days} дней</b>\n"
@@ -267,12 +268,12 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             )
 
             return (
-                f"<b>Подписка #{subscription.subscription_id}</b>\n"
+                f"<b>Подписка #{subscription.subscription_id}:</b>\n"
                 f"Тариф «{current_plan.name}»\n"
                 f"\n"
                 f"<b>Статус: {subscription.status}</b>\n"
-                f"Подключена: <b>{utils.get_formatted_timestamp(subscription.subscribed_date)}</b>\n"
-                f"Истекает: <b>{utils.get_formatted_timestamp(subscription.expires_date)}</b>\n"
+                f"Подключена: <b>{utils.get_formatted_date(subscription.subscribed_date)}</b>\n"
+                f"Истекает: <b>{utils.get_formatted_date(subscription.expires_date)}</b>\n"
             ) + (
                 (
                     f"\n"
@@ -349,11 +350,11 @@ class StringsProvider(pyquoks.data.IStringsProvider):
         @staticmethod
         def admin_payment(payment: models.PaymentValues, user: models.UserValues) -> str:
             return (
-                f"<b>Платёж #{payment.payment_id}</b>\n"
+                f"<b>Платёж #{payment.payment_id}:</b>\n"
                 f"\n"
                 f"<b>Информация: «{payment.payment_payload}»</b>\n"
                 f"Сумма: <b>{payment.payment_amount} {payment.payment_currency}</b>\n"
-                f"Совершён: <b>{utils.get_formatted_timestamp(payment.payment_date)}</b>\n"
+                f"Совершён: <b>{utils.get_formatted_date(payment.payment_date)}</b>\n"
             ) + (
                 (
                     f"\n"
@@ -362,6 +363,24 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             ) + (
                 f"\n"
                 f"Пользователь: {user.html_text}\n"
+            )
+
+        @staticmethod
+        def admin_settings(
+                bot: aiogram.types.User,
+                users_count: int,
+                subscriptions_count: int,
+                payments_count: int,
+                date_started: datetime.datetime,
+        ) -> str:
+            return (
+                f"<b>Информация о {bot.full_name}:</b>\n"
+                f"\n"
+                f"Пользователей: <b>{users_count}</b>\n"
+                f"Подписок: <b>{subscriptions_count}</b>\n"
+                f"Платежей: <b>{payments_count}</b>\n"
+                f"\n"
+                f"<b>Запущен: {utils.get_formatted_date(date_started)} UTC</b>\n"
             )
 
         # endregion

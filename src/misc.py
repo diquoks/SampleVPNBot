@@ -246,6 +246,13 @@ class ButtonsContainer:
             callback_data=f"admin_subscription_expire {subscription_id}",
         )
 
+    @property
+    def admin_settings_stop(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Остановить бота",
+            callback_data="admin_settings_stop",
+        )
+
     # endregion
 
     # region page
