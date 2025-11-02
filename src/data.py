@@ -561,7 +561,6 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 self,
                 tg_id: int,
                 plan_id: int,
-                payment_amount: int,
                 subscribed_date: int,
                 expires_date: int,
                 is_active: int,
@@ -580,7 +579,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (tg_id, plan_id, payment_amount, subscribed_date, expires_date, is_active),
+                (tg_id, plan_id, subscribed_date, expires_date, is_active),
             )
 
             self.commit()

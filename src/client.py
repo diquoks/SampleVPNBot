@@ -555,7 +555,6 @@ class AiogramClient(aiogram.Dispatcher):
                         current_subscription = self._database.subscriptions.add_subscription(
                             tg_id=current_user.tg_id,
                             plan_id=current_plan_id,
-                            payment_amount=current_plan.cost,
                             subscribed_date=int(datetime_subscribed.timestamp()),
                             expires_date=int(
                                 (datetime_subscribed + datetime.timedelta(
@@ -1110,11 +1109,11 @@ class AiogramClient(aiogram.Dispatcher):
             )
 
     async def pre_add_funds_handler(self, pre_checkout_query: aiogram.types.PreCheckoutQuery) -> None:
-        payment_amount = int(pre_checkout_query.total_amount / self._config.payments.currency_multiplier)
+        amount = int(pre_checkout_query.total_amount / self._config.payments.currency_multiplier)
 
         self._logger.log_user_interaction(
             user=pre_checkout_query.from_user,
-            interaction=f"{self.pre_add_funds_handler.__name__} ({payment_amount=})",
+            interaction=f"{self.pre_add_funds_handler.__name__} ({amount=})",
         )
 
         self._database.users.add_user(
@@ -1129,19 +1128,19 @@ class AiogramClient(aiogram.Dispatcher):
         )
 
         await pre_checkout_query.answer(
-            ok=self._data.plans.minimum_plan.cost <= current_user.balance + payment_amount <= self._get_max_balance(
+            ok=self._data.plans.minimum_plan.cost <= current_user.balance + amount <= self._get_max_balance(
                 tg_id=current_user.tg_id,
             ),
             error_message=self._strings.alert.add_funds_unavailable,
         )
 
     async def success_add_funds_handler(self, message: aiogram.types.Message) -> None:
-        payment_amount = int(message.successful_payment.total_amount / self._config.payments.currency_multiplier)
+        amount = int(message.successful_payment.total_amount / self._config.payments.currency_multiplier)
         successful_payment_date = int(datetime.datetime.now().timestamp())
 
         self._logger.log_user_interaction(
             user=message.from_user,
-            interaction=f"{self.success_add_funds_handler.__name__} ({payment_amount=})",
+            interaction=f"{self.success_add_funds_handler.__name__} ({amount=})",
         )
 
         current_user = self._database.users.get_user(
@@ -1158,7 +1157,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.payments.add_payment(
             tg_id=current_user.tg_id,
-            payment_amount=payment_amount,
+            payment_amount=amount,
             payment_currency=message.successful_payment.currency,
             payment_payload=message.successful_payment.invoice_payload,
             payment_provider_id=message.successful_payment.provider_payment_charge_id,
@@ -1167,7 +1166,7 @@ class AiogramClient(aiogram.Dispatcher):
 
         self._database.users.add_balance(
             tg_id=current_user.tg_id,
-            amount=payment_amount
+            amount=amount
         )
 
         if referrer_user:
@@ -1179,13 +1178,13 @@ class AiogramClient(aiogram.Dispatcher):
 
             referrer_multiplier = referrer_model.get_referrer_multiplier(is_first_payment)
 
-            referrer_bonus_amount = int(payment_amount * referrer_multiplier)
+            referrer_bonus_amount = int(amount * referrer_multiplier)
 
             self._database.payments.add_payment(
                 tg_id=referrer_user.tg_id,
                 payment_amount=referrer_bonus_amount,
                 payment_currency=self._config.payments.currency,
-                payment_payload=f"referral {current_user.tg_id} {payment_amount} ({is_first_payment=})",
+                payment_payload=f"referral {current_user.tg_id} {amount} ({is_first_payment=})",
                 payment_provider_id=None,
                 payment_date=successful_payment_date,
             )
@@ -1203,7 +1202,7 @@ class AiogramClient(aiogram.Dispatcher):
                     chat_id=referrer_user.tg_id,
                     text=self._strings.menu.add_funds_referrer(
                         user=current_user,
-                        amount=payment_amount,
+                        amount=amount,
                         referrer_bonus_amount=referrer_bonus_amount,
                         referrer_multiplier=referrer_multiplier,
                     ),
@@ -1222,7 +1221,7 @@ class AiogramClient(aiogram.Dispatcher):
                 chat_id=message.chat.id,
                 message_thread_id=self._get_message_thread_id(message),
                 text=self._strings.menu.add_funds_success(
-                    amount=payment_amount,
+                    amount=amount,
                 ),
                 reply_markup=markup_builder.as_markup(),
             )
