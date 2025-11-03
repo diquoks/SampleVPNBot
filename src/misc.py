@@ -1,5 +1,5 @@
 from __future__ import annotations
-import math
+import itertools, typing, math
 import aiogram
 import models, data, constants
 
@@ -166,10 +166,52 @@ class ButtonsContainer:
         )
 
     @staticmethod
+    def admin_user(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Пользователь",
+            callback_data=f"admin_user {tg_id}",
+        )
+
+    @staticmethod
+    def admin_user_referrer(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Реферер",
+            callback_data=f"admin_user {tg_id}",
+        )
+
+    @staticmethod
+    def admin_user_balance_enter(tg_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Изменить баланс",
+            callback_data=f"admin_user_balance_enter {tg_id}",
+        )
+
+    @staticmethod
     def admin_configs(page_id: int = constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
         return aiogram.types.InlineKeyboardButton(
             text="Конфигурации",
             callback_data=f"admin_configs {page_id}",
+        )
+
+    @property
+    def admin_configs_add(self) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Добавить конфигурацию",
+            callback_data="admin_configs_add",
+        )
+
+    @staticmethod
+    def admin_config(config_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Конфигурация",
+            callback_data=f"admin_config {config_id}",
+        )
+
+    @staticmethod
+    def admin_config_file(config_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Файл конфигурации",
+            callback_data=f"admin_config_file {config_id}",
         )
 
     @staticmethod
@@ -186,6 +228,20 @@ class ButtonsContainer:
                     str(tg_id) if tg_id else None,
                 ] if i
             ),
+        )
+
+    @staticmethod
+    def admin_subscription(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Подписка",
+            callback_data=f"admin_subscription {subscription_id}",
+        )
+
+    @staticmethod
+    def admin_subscription_expire(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Завершить подписку",
+            callback_data=f"admin_subscription_expire {subscription_id}",
         )
 
     @staticmethod
@@ -216,34 +272,6 @@ class ButtonsContainer:
         return aiogram.types.InlineKeyboardButton(
             text="Настройки",
             callback_data="admin_settings",
-        )
-
-    @staticmethod
-    def admin_user_balance_enter(tg_id: int) -> aiogram.types.InlineKeyboardButton:
-        return aiogram.types.InlineKeyboardButton(
-            text="Изменить баланс",
-            callback_data=f"admin_user_balance_enter {tg_id}",
-        )
-
-    @staticmethod
-    def admin_user_referrer(tg_id: int) -> aiogram.types.InlineKeyboardButton:
-        return aiogram.types.InlineKeyboardButton(
-            text="Реферер",
-            callback_data=f"admin_user {tg_id}",
-        )
-
-    @staticmethod
-    def admin_user(tg_id: int) -> aiogram.types.InlineKeyboardButton:
-        return aiogram.types.InlineKeyboardButton(
-            text="Пользователь",
-            callback_data=f"admin_user {tg_id}",
-        )
-
-    @staticmethod
-    def admin_subscription_expire(subscription_id: int) -> aiogram.types.InlineKeyboardButton:
-        return aiogram.types.InlineKeyboardButton(
-            text="Завершить подписку",
-            callback_data=f"admin_subscription_expire {subscription_id}",
         )
 
     @property
@@ -327,16 +355,28 @@ class ButtonsContainer:
         )
 
     @staticmethod
-    def page_item_subscription(page: str, plan_name: str, subscription_id: int) -> aiogram.types.InlineKeyboardButton:
+    def page_item_config(page: str, config: models.ConfigValues) -> aiogram.types.InlineKeyboardButton:
         return aiogram.types.InlineKeyboardButton(
-            text=f"#{subscription_id} «{plan_name}»",
-            callback_data=f"{page} {subscription_id}",
+            text=f"#{config.id} «{config.name}»",
+            callback_data=f"{page} {config.id}",
         )
 
-    def page_item_payment(self, page: str, payment_amount: int, payment_id: int) -> aiogram.types.InlineKeyboardButton:
+    def page_item_subscription(
+            self,
+            page: str,
+            subscription: models.SubscriptionValues,
+    ) -> aiogram.types.InlineKeyboardButton:
+        current_plan = self._data.plans.get_plan_by_id(subscription.plan_id)
+
         return aiogram.types.InlineKeyboardButton(
-            text=f"#{payment_id} ({self._config.payments.get_amount_with_currency(payment_amount)})",
-            callback_data=f"{page} {payment_id}",
+            text=f"#{subscription.id} «{current_plan.name}»",
+            callback_data=f"{page} {subscription.id}",
+        )
+
+    def page_item_payment(self, page: str, payment: models.PaymentValues) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text=f"#{payment.id} ({self._config.payments.get_amount_with_currency(payment.amount)})",
+            callback_data=f"{page} {payment.id}",
         )
 
     # endregion
@@ -416,12 +456,15 @@ class ButtonsContainer:
 
     def get_page_buttons(
             self,
-            page_items: list,
             page: str,
             page_id: int,
+            items_page: str,
+            items_list: list,
+            items_func: typing.Callable[..., aiogram.types.InlineKeyboardButton],
             tg_id: int | None = None,
     ) -> tuple[
         aiogram.types.InlineKeyboardButton,
+        list[aiogram.types.InlineKeyboardButton],
         tuple[
             aiogram.types.InlineKeyboardButton,
             aiogram.types.InlineKeyboardButton,
@@ -430,12 +473,23 @@ class ButtonsContainer:
     ]:
         previous_page_id = page_id - 1
         next_page_id = page_number = page_id + 1
-        pages_count = math.ceil(len(page_items) / constants.ITEMS_PER_PAGE)
+        pages_count = math.ceil(len(items_list) / constants.ITEMS_PER_PAGE)
 
         return (
             self._page_enter(
                 page=page,
             ),
+            list(
+                items_func(
+                    items_page,
+                    item
+                ) for item in list(
+                    itertools.batched(
+                        items_list,
+                        constants.ITEMS_PER_PAGE,
+                    )
+                )[page_id]
+            ) if items_list else list(),
             (
                 self._page_previous(
                     page=page,

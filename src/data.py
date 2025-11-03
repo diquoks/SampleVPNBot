@@ -52,6 +52,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
         _SECTION = "Settings"
         admin_list: list[int]
         bot_token: str
+        config_extension: str
         debug_logging: bool
         file_logging: bool
         skip_updates: bool
@@ -77,6 +78,7 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
             {
                 "admin_list": list,
                 "bot_token": str,
+                "config_extension": str,
                 "debug_logging": bool,
                 "file_logging": bool,
                 "skip_updates": bool,
@@ -94,6 +96,18 @@ class ConfigProvider(pyquoks.data.IConfigProvider):
 
 class StringsProvider(pyquoks.data.IStringsProvider):
     class AlertStrings(pyquoks.data.IStringsProvider.IStrings):
+
+        # region plans
+
+        @property
+        def plan_subscribe_limit(self):
+            return "Достигнут лимит активных подписок!"
+
+        @property
+        def plan_subscribe_config_unavailable(self):
+            return "Доступные конфигурации отсутствуют!"
+
+        # endregion
 
         # region add_funds
 
@@ -116,6 +130,10 @@ class StringsProvider(pyquoks.data.IStringsProvider):
         # endregion
 
         # region /admin
+
+        @property
+        def admin_users_unavailable(self) -> str:
+            return "Пользователи отсутствуют!"
 
         @property
         def admin_subscriptions_unavailable(self) -> str:
@@ -268,12 +286,12 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             )
 
             return (
-                f"<b>Подписка #{subscription.subscription_id}:</b>\n"
+                f"<b>Подписка #{subscription.id}:</b>\n"
                 f"Тариф «{current_plan.name}»\n"
                 f"\n"
                 f"<b>Статус: {subscription.status}</b>\n"
-                f"Подключена: <b>{utils.get_formatted_date(subscription.subscribed_date)}</b>\n"
-                f"Истекает: <b>{utils.get_formatted_date(subscription.expires_date)}</b>\n"
+                f"Подключена: <b>{utils.get_formatted_date(subscription.subscribed_at)}</b>\n"
+                f"Истекает: <b>{utils.get_formatted_date(subscription.expires_at)}</b>\n"
             ) + (
                 (
                     f"\n"
@@ -334,6 +352,38 @@ class StringsProvider(pyquoks.data.IStringsProvider):
             )
 
         @staticmethod
+        def admin_configs(configs_count: int) -> str:
+            return (
+                f"<b>Выберите конфигурацию:</b>\n"
+                f"(Всего: {configs_count})\n"
+            )
+
+        @staticmethod
+        def admin_configs_add(error: bool = False) -> str:
+            return (
+                (
+                    "Файл имеет некорректное\n"
+                    "содержимое или имя!\n"
+                    "\n"
+                ) if error else str()
+            ) + (
+                "Отправьте файл конфигурации\n"
+                "с уникальным именем:\n"
+            )
+
+        @property
+        def admin_configs_add_success(self) -> str:
+            return "Файл конфигурации добавлен!"
+
+        @staticmethod
+        def admin_config(config: models.ConfigValues) -> str:
+            return (
+                f"<b>Конфигурация #{config.id}:</b>\n"
+                f"\n"
+                f"<b>Имя: «{config.name}»</b>\n"
+            )
+
+        @staticmethod
         def admin_subscriptions(subscriptions_count: int) -> str:
             return (
                 f"<b>Выберите подписку:</b>\n"
@@ -350,16 +400,16 @@ class StringsProvider(pyquoks.data.IStringsProvider):
         @staticmethod
         def admin_payment(payment: models.PaymentValues, user: models.UserValues) -> str:
             return (
-                f"<b>Платёж #{payment.payment_id}:</b>\n"
+                f"<b>Платёж #{payment.id}:</b>\n"
                 f"\n"
-                f"<b>Информация: «{payment.payment_payload}»</b>\n"
-                f"Сумма: <b>{payment.payment_amount} {payment.payment_currency}</b>\n"
-                f"Совершён: <b>{utils.get_formatted_date(payment.payment_date)}</b>\n"
+                f"<b>Информация: «{payment.payload}»</b>\n"
+                f"Сумма: <b>{payment.amount} {payment.currency}</b>\n"
+                f"Совершён: <b>{utils.get_formatted_date(payment.date)}</b>\n"
             ) + (
                 (
                     f"\n"
-                    f"ID платежа: <code>{payment.payment_provider_id}</code>\n"
-                ) if payment.payment_provider_id else str()
+                    f"ID платежа: <code>{payment.provider_id}</code>\n"
+                ) if payment.provider_id else str()
             ) + (
                 f"\n"
                 f"Пользователь: {user.html_text}\n"
@@ -369,6 +419,7 @@ class StringsProvider(pyquoks.data.IStringsProvider):
         def admin_settings(
                 bot: aiogram.types.User,
                 users_count: int,
+                configs_count: int,
                 subscriptions_count: int,
                 payments_count: int,
                 date_started: datetime.datetime,
@@ -377,6 +428,7 @@ class StringsProvider(pyquoks.data.IStringsProvider):
                 f"<b>Информация о {bot.full_name}:</b>\n"
                 f"\n"
                 f"Пользователей: <b>{users_count}</b>\n"
+                f"Конфигураций: <b>{configs_count}</b>\n"
                 f"Подписок: <b>{subscriptions_count}</b>\n"
                 f"Платежей: <b>{payments_count}</b>\n"
                 f"\n"
@@ -432,55 +484,187 @@ class StringsProvider(pyquoks.data.IStringsProvider):
 # region Managers
 
 class DatabaseManager(pyquoks.data.IDatabaseManager):
-    class PaymentsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
-        _NAME = "payments"
+    class ConfigsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
+        _NAME = "configs"
         _SQL = f"""
         CREATE TABLE IF NOT EXISTS {_NAME} (
-        payment_id INTEGER PRIMARY KEY NOT NULL,
-        tg_id INTEGER NOT NULL,
-        payment_amount INTEGER NOT NULL,
-        payment_currency TEXT NOT NULL,
-        payment_payload TEXT NOT NULL,
-        payment_provider_id TEXT,
-        payment_date INTEGER NOT NULL
+        id INTEGER PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        data TEXT NOT NULL,
+        subscription_id INTEGER
         )
         """
 
-        def add_payment(
-                self,
-                tg_id: int,
-                payment_amount: int,
-                payment_currency: str,
-                payment_payload: str,
-                payment_provider_id: str | None,
-                payment_date: int,
-        ) -> models.PaymentValues | None:
+        def add_config(self, name: str, data: str, subscription_id: int | None) -> models.ConfigValues | None:
             cursor = self.cursor()
 
             cursor.execute(
                 f"""
                 INSERT INTO {self._NAME} (
-                tg_id,
-                payment_amount,
-                payment_currency,
-                payment_payload,
-                payment_provider_id,
-                payment_date
+                name,
+                data,
+                subscription_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?)
                 """,
-                (tg_id, payment_amount, payment_currency, payment_payload, payment_provider_id, payment_date),
+                (
+                    name,
+                    data,
+                    subscription_id,
+                ),
             )
 
             self.commit()
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE rowid = ?
+                SELECT * FROM {self._NAME} WHERE rowid == ?
                 """,
-                (cursor.lastrowid,),
+                (
+                    cursor.lastrowid,
+                ),
             )
             result = cursor.fetchone()
+
+            return models.ConfigValues(
+                **dict(result),
+            ) if result else None
+
+        def get_config(self, config_id: int) -> models.ConfigValues | None:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE id == ?
+                """,
+                (
+                    config_id,
+                ),
+            )
+            result = cursor.fetchone()
+
+            return models.ConfigValues(
+                **dict(result),
+            ) if result else None
+
+        def get_all_configs(self) -> list[models.ConfigValues] | None:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME}
+                """,
+            )
+
+            return [
+                models.ConfigValues(
+                    **dict(row),
+                ) for row in cursor.fetchall()
+            ]
+
+        def get_available_configs(self) -> list[models.ConfigValues] | None:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE subscription_id IS NULL
+                """,
+            )
+
+            return [
+                models.ConfigValues(
+                    **dict(row),
+                ) for row in cursor.fetchall()
+            ]
+
+        def attach_subscription(self, config_id: int, subscription_id: int) -> None:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET subscription_id = ? WHERE id == ?
+                """,
+                (
+                    subscription_id,
+                    config_id,
+                ),
+            )
+
+            self.commit()
+
+        def check_config_name(self, name: str) -> bool:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE name == ?
+                """,
+                (
+                    name,
+                ),
+            )
+
+            return not bool(cursor.fetchone())
+
+    class PaymentsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
+        _NAME = "payments"
+        _SQL = f"""
+        CREATE TABLE IF NOT EXISTS {_NAME} (
+        id INTEGER PRIMARY KEY NOT NULL,
+        provider_id TEXT,
+        amount INTEGER NOT NULL,
+        currency TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        date INTEGER NOT NULL,
+        tg_id INTEGER NOT NULL
+        )
+        """
+
+        def add_payment(
+                self,
+                provider_id: str | None,
+                amount: int,
+                currency: str,
+                payload: str,
+                date: int,
+                tg_id: int,
+        ) -> models.PaymentValues | None:
+            cursor = self.cursor()
+
+            cursor.execute(
+                f"""
+                INSERT INTO {self._NAME} (
+                provider_id,
+                amount,
+                currency,
+                payload,
+                date,
+                tg_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    provider_id,
+                    amount,
+                    currency,
+                    payload,
+                    date,
+                    tg_id,
+                ),
+            )
+
+            self.commit()
+
+            cursor.execute(
+                f"""
+                SELECT * FROM {self._NAME} WHERE rowid == ?
+                """,
+                (
+                    cursor.lastrowid,
+                ),
+            )
+            result = cursor.fetchone()
+
             return models.PaymentValues(
                 **dict(result),
             ) if result else None
@@ -490,12 +674,14 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE payment_id == ?
+                SELECT * FROM {self._NAME} WHERE id == ?
                 """,
-                (payment_id,),
+                (
+                    payment_id,
+                ),
             )
-
             result = cursor.fetchone()
+
             return models.PaymentValues(
                 **dict(result),
             ) if result else None
@@ -522,7 +708,9 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
-                (tg_id,),
+                (
+                    tg_id,
+                ),
             )
 
             return [
@@ -531,66 +719,79 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 ) for row in cursor.fetchall()
             ]
 
-        def check_payments(self, tg_id: int) -> bool:
+        def check_first_payment(self, tg_id: int) -> bool:
             cursor = self.cursor()
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE payment_provider_id IS NOT NULL AND tg_id == ?
+                SELECT * FROM {self._NAME} WHERE provider_id IS NOT NULL AND tg_id == ?
                 """,
-                (tg_id,),
+                (
+                    tg_id,
+                ),
             )
 
-            return bool(cursor.fetchone())
+            return not bool(cursor.fetchone())
 
     class SubscriptionsDatabase(pyquoks.data.IDatabaseManager.IDatabase):
         _NAME = "subscriptions"
         _SQL = f"""
         CREATE TABLE IF NOT EXISTS {_NAME} (
-        subscription_id INTEGER PRIMARY KEY NOT NULL,
-        tg_id INTEGER NOT NULL,
+        id INTEGER PRIMARY KEY NOT NULL,
         plan_id INTEGER NOT NULL,
-        payment_amount INTEGER NOT NULL,
-        subscribed_date INTEGER NOT NULL,
-        expires_date INTEGER NOT NULL,
-        is_active INTEGER NOT NULL
+        is_active INTEGER NOT NULL,
+        subscribed_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        tg_id INTEGER NOT NULL,
+        config_id INTEGER NOT NULL
         )
         """
 
         def add_subscription(
                 self,
-                tg_id: int,
                 plan_id: int,
-                subscribed_date: int,
-                expires_date: int,
                 is_active: int,
+                subscribed_at: int,
+                expires_at: int,
+                tg_id: int,
+                config_id: int,
         ) -> models.SubscriptionValues | None:
             cursor = self.cursor()
 
             cursor.execute(
                 f"""
                 INSERT INTO {self._NAME} (
-                tg_id,
                 plan_id,
-                payment_amount,
-                subscribed_date,
-                expires_date,
-                is_active
+                is_active,
+                subscribed_at,
+                expires_at,
+                tg_id,
+                config_id
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (tg_id, plan_id, subscribed_date, expires_date, is_active),
+                (
+                    plan_id,
+                    is_active,
+                    subscribed_at,
+                    expires_at,
+                    tg_id,
+                    config_id,
+                ),
             )
 
             self.commit()
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE rowid = ?
+                SELECT * FROM {self._NAME} WHERE rowid == ?
                 """,
-                (cursor.lastrowid,),
+                (
+                    cursor.lastrowid,
+                ),
             )
             result = cursor.fetchone()
+
             return models.SubscriptionValues(
                 **dict(result),
             ) if result else None
@@ -600,12 +801,14 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
 
             cursor.execute(
                 f"""
-                SELECT * FROM {self._NAME} WHERE subscription_id == ?
+                SELECT * FROM {self._NAME} WHERE id == ?
                 """,
-                (subscription_id,),
+                (
+                    subscription_id,
+                ),
             )
-
             result = cursor.fetchone()
+
             return models.SubscriptionValues(
                 **dict(result),
             ) if result else None
@@ -632,7 +835,9 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
-                (tg_id,),
+                (
+                    tg_id,
+                ),
             )
 
             return [
@@ -651,14 +856,17 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
             )
 
-        def edit_expires_date(self, subscription_id: int, expires_date: int) -> None:
+        def edit_expires_date(self, subscription_id: int, expires_at: int) -> None:
             cursor = self.cursor()
 
             cursor.execute(
                 f"""
-                UPDATE {self._NAME} SET expires_date = ? WHERE subscription_id == ?
+                UPDATE {self._NAME} SET expires_at = ? WHERE id == ?
                 """,
-                (expires_date, subscription_id),
+                (
+                    expires_at,
+                    subscription_id,
+                ),
             )
 
             self.commit()
@@ -672,9 +880,14 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
 
             cursor.execute(
                 f"""
-                UPDATE {self._NAME} SET is_active = ? WHERE subscription_id == ?
+                UPDATE {self._NAME} SET is_active = ? WHERE id == ?
                 """,
-                (int(not bool(current_subscription.is_active)), subscription_id),
+                (
+                    int(
+                        not bool(current_subscription.is_active)
+                    ),
+                    subscription_id,
+                ),
             )
 
             self.commit()
@@ -696,7 +909,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 tg_username: str | None,
                 balance: int,
                 referrer_id: int | None,
-        ) -> models.UserValues | None:
+        ) -> None:
             cursor = self.cursor()
 
             cursor.execute(
@@ -709,21 +922,15 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
                 VALUES (?, ?, ?, ?)
                 """,
-                (tg_id, tg_username, balance, referrer_id),
+                (
+                    tg_id,
+                    tg_username,
+                    balance,
+                    referrer_id,
+                ),
             )
 
             self.commit()
-
-            cursor.execute(
-                f"""
-                SELECT * FROM {self._NAME} WHERE rowid = ?
-                """,
-                (cursor.lastrowid,),
-            )
-            result = cursor.fetchone()
-            return models.UserValues(
-                **dict(result),
-            ) if result else None
 
         def get_user(self, tg_id: int) -> models.UserValues | None:
             cursor = self.cursor()
@@ -732,10 +939,12 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 f"""
                 SELECT * FROM {self._NAME} WHERE tg_id == ?
                 """,
-                (tg_id,),
+                (
+                    tg_id,
+                ),
             )
-
             result = cursor.fetchone()
+
             return models.UserValues(
                 **dict(result),
             ) if result else None
@@ -762,7 +971,9 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 f"""
                 SELECT COUNT(*) from {self._NAME} WHERE referrer_id == ?
                 """,
-                (tg_id,),
+                (
+                    tg_id,
+                ),
             )
 
             return cursor.fetchone()[0]
@@ -774,7 +985,10 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 f"""
                 UPDATE {self._NAME} SET balance = ? WHERE tg_id == ?
                 """,
-                (balance, tg_id),
+                (
+                    balance,
+                    tg_id,
+                ),
             )
 
             self.commit()
@@ -782,18 +996,26 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         def add_balance(self, tg_id: int, amount: int) -> None:
             current_user = self.get_user(tg_id)
 
-            self.edit_balance(tg_id, current_user.balance + amount)
+            self.edit_balance(
+                tg_id=tg_id,
+                balance=current_user.balance + amount,
+            )
 
         def reduce_balance(self, tg_id: int, amount: int) -> None:
             current_user = self.get_user(tg_id)
 
-            self.edit_balance(tg_id, current_user.balance - amount)
+            self.edit_balance(
+                tg_id=tg_id,
+                balance=current_user.balance - amount,
+            )
 
     _DATABASE_OBJECTS = {
+        "config": ConfigsDatabase,
         "payments": PaymentsDatabase,
         "subscriptions": SubscriptionsDatabase,
         "users": UsersDatabase,
     }
+    config: ConfigsDatabase
     payments: PaymentsDatabase
     subscriptions: SubscriptionsDatabase
     users: UsersDatabase

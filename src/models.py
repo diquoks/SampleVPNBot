@@ -90,44 +90,59 @@ class ReferrersContainer(pyquoks.models.IContainer):
 
 # region Values
 
+class ConfigValues(pyquoks.models.IValues):
+    _ATTRIBUTES = {
+        "id",
+        "name",
+        "data",
+        "subscription_id",
+    }
+    id: int | None
+    name: str | None
+    data: str | None
+    subscription_id: int | None
+
+
 class PaymentValues(pyquoks.models.IValues):
     _ATTRIBUTES = {
-        "payment_id",
+        "id",
+        "provider_id",
+        "amount",
+        "currency",
+        "payload",
+        "date",
         "tg_id",
-        "payment_amount",
-        "payment_currency",
-        "payment_payload",
-        "payment_provider_id",
-        "payment_date",
     }
-    payment_id: int | None
+    id: int | None
+    provider_id: str | None
+    amount: int | None
+    currency: str | None
+    payload: str | None
+    date: int | None
     tg_id: int | None
-    payment_amount: int | None
-    payment_currency: str | None
-    payment_payload: str | None
-    payment_provider_id: str | None
-    payment_date: int | None
 
 
 class SubscriptionValues(pyquoks.models.IValues):
     _ATTRIBUTES = {
-        "subscription_id",
-        "tg_id",
+        "id",
         "plan_id",
-        "subscribed_date",
-        "expires_date",
         "is_active",
+        "subscribed_at",
+        "expires_at",
+        "tg_id",
+        "config_id",
     }
-    subscription_id: int | None
-    tg_id: int | None
+    id: int | None
     plan_id: int | None
-    subscribed_date: int | None
-    expires_date: int | None
     is_active: int | None
+    subscribed_at: int | None
+    expires_at: int | None
+    tg_id: int | None
+    config_id: int | None
 
     @property
     def is_expired(self) -> bool:
-        return self.expires_date < datetime.datetime.now().timestamp()
+        return self.expires_at < datetime.datetime.now().timestamp()
 
     @property
     def status(self) -> str:
