@@ -280,7 +280,12 @@ class StringsProvider(pyquoks.data.IStringsProvider):
 
         # region subscriptions
 
-        def subscription(self, subscription: models.SubscriptionValues, user: models.UserValues = None) -> str:
+        def subscription(
+                self,
+                subscription: models.SubscriptionValues,
+                user: models.UserValues = None,
+                include_checked: bool = False,
+        ) -> str:
             current_plan = self._data.plans.get_plan_by_id(
                 plan_id=subscription.plan_id,
             )
@@ -290,6 +295,11 @@ class StringsProvider(pyquoks.data.IStringsProvider):
                 f"Тариф «{current_plan.name}»\n"
                 f"\n"
                 f"<b>Статус: {subscription.status}</b>\n"
+            ) + (
+                (
+                    f"Проверена: <b>{bool(subscription.is_checked)}</b>\n"
+                ) if include_checked else str()
+            ) + (
                 f"Подключена: <b>{utils.get_formatted_date(subscription.subscribed_at)}</b>\n"
                 f"Истекает: <b>{utils.get_formatted_date(subscription.expires_at)}</b>\n"
             ) + (
@@ -740,6 +750,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
         id INTEGER PRIMARY KEY NOT NULL,
         plan_id INTEGER NOT NULL,
         is_active INTEGER NOT NULL,
+        is_checked INTEGER NOT NULL,
         subscribed_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL,
         tg_id INTEGER NOT NULL,
@@ -751,6 +762,7 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 self,
                 plan_id: int,
                 is_active: int,
+                is_checked: int,
                 subscribed_at: int,
                 expires_at: int,
                 tg_id: int,
@@ -763,16 +775,18 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 INSERT INTO {self._NAME} (
                 plan_id,
                 is_active,
+                is_checked,
                 subscribed_at,
                 expires_at,
                 tg_id,
                 config_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     plan_id,
                     is_active,
+                    is_checked,
                     subscribed_at,
                     expires_at,
                     tg_id,
@@ -856,7 +870,17 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 )
             )
 
-        def edit_expires_date(self, subscription_id: int, expires_at: int) -> None:
+        def get_unchecked_expired_subscriptions(self) -> list[models.SubscriptionValues]:
+            subscriptions = self.get_all_subscriptions()
+
+            return list(
+                filter(
+                    lambda subscription: not subscription.is_checked and subscription.is_expired,
+                    subscriptions,
+                )
+            )
+
+        def edit_expires_at(self, subscription_id: int, expires_at: int) -> None:
             cursor = self.cursor()
 
             cursor.execute(
@@ -885,6 +909,27 @@ class DatabaseManager(pyquoks.data.IDatabaseManager):
                 (
                     int(
                         not bool(current_subscription.is_active)
+                    ),
+                    subscription_id,
+                ),
+            )
+
+            self.commit()
+
+        def switch_checked(self, subscription_id: int) -> None:
+            cursor = self.cursor()
+
+            current_subscription = self.get_subscription(
+                subscription_id=subscription_id,
+            )
+
+            cursor.execute(
+                f"""
+                UPDATE {self._NAME} SET is_checked = ? WHERE id == ?
+                """,
+                (
+                    int(
+                        not bool(current_subscription.is_checked)
                     ),
                     subscription_id,
                 ),

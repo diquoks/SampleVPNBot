@@ -1,5 +1,5 @@
 from __future__ import annotations
-import datetime, logging
+import datetime, asyncio, logging
 import aiogram, aiogram.exceptions, aiogram.filters, aiogram.client.default, aiogram.utils.keyboard, \
     aiogram.fsm.context, aiogram.fsm.state
 import models, data, misc, constants
@@ -31,7 +31,7 @@ class AiogramClient(aiogram.Dispatcher):
             level=logging.DEBUG if self._config.settings.debug_logging else logging.INFO,
         )
         self._states = self.States()
-        self._states_router = aiogram.Router()
+        self._router = aiogram.Router()
         self._buttons = misc.ButtonsContainer()
         self._bot = aiogram.Bot(
             token=self._config.settings.bot_token,
@@ -40,7 +40,7 @@ class AiogramClient(aiogram.Dispatcher):
             ),
         )
         super().__init__(name="AiogramClientDispatcher")
-        self.include_router(self._states_router)
+        self.include_router(self._router)
 
         self.errors.register(
             self.error_handler,
@@ -65,7 +65,7 @@ class AiogramClient(aiogram.Dispatcher):
             ),
         )
 
-        self._states_router.callback_query.register(
+        self._router.callback_query.register(
             self.callback_handler,
         )
 
@@ -77,25 +77,25 @@ class AiogramClient(aiogram.Dispatcher):
             aiogram.F.successful_payment,
         )
 
-        self._states_router.message.register(
+        self._router.message.register(
             self.add_funds_enter_handler,
             aiogram.filters.StateFilter(
                 self._states.add_funds_enter,
             ),
         )
-        self._states_router.message.register(
+        self._router.message.register(
             self.admin_user_balance_enter_handler,
             aiogram.filters.StateFilter(
                 self._states.admin_user_balance_enter,
             ),
         )
-        self._states_router.message.register(
+        self._router.message.register(
             self.admin_config_add_handler,
             aiogram.filters.StateFilter(
                 self._states.admin_configs_add,
             ),
         )
-        self._states_router.message.register(
+        self._router.message.register(
             self.admin_page_enter_handler,
             aiogram.filters.StateFilter(
                 self._states.admin_users_enter,
@@ -160,6 +160,51 @@ class AiogramClient(aiogram.Dispatcher):
     async def terminate_polling(self) -> None:
         await self.stop_polling()
         await self._bot.close()
+
+    async def worker(self) -> None:
+        self._logger.info(f"{self.worker.__name__} initialized!")
+
+        while True:
+            current_subscriptions = self._database.subscriptions.get_unchecked_expired_subscriptions()
+
+            for subscription in current_subscriptions:
+
+                current_plan = self._data.plans.get_plan_by_id(
+                    plan_id=subscription.plan_id,
+                )
+
+                current_user = self._database.users.get_user(
+                    tg_id=subscription.tg_id,
+                )
+
+                is_renewable = subscription.is_active and current_plan.cost <= current_user.balance
+
+                self._logger.info(f"{self.worker.__name__} ({subscription.id=}, {is_renewable=})")
+
+                if is_renewable:
+                    self._database.users.reduce_balance(
+                        tg_id=current_user.tg_id,
+                        amount=current_plan.cost,
+                    )
+
+                    self._database.subscriptions.edit_expires_at(
+                        subscription_id=subscription.id,
+                        expires_at=int(
+                            (datetime.datetime.now() + datetime.timedelta(
+                                days=current_plan.days,
+                            )).timestamp()
+                        ),
+                    )
+
+                    markup_builder = aiogram.utils.keyboard.InlineKeyboardBuilder()
+                    markup_builder.row(self._buttons.view_subscriptions())
+                    markup_builder.row(self._buttons.view_start)
+                else:
+                    self._database.subscriptions.switch_checked(
+                        subscription_id=subscription.id,
+                    )
+
+            await asyncio.sleep(1)
 
     async def delete_and_send_start(self, call: aiogram.types.CallbackQuery) -> None:
         current_user = self._database.users.get_user(
@@ -570,6 +615,7 @@ class AiogramClient(aiogram.Dispatcher):
                                 current_subscription = self._database.subscriptions.add_subscription(
                                     plan_id=current_plan_id,
                                     is_active=True,
+                                    is_checked=False,
                                     subscribed_at=int(datetime_subscribed.timestamp()),
                                     expires_at=int(
                                         (datetime_subscribed + datetime.timedelta(
@@ -1016,9 +1062,12 @@ class AiogramClient(aiogram.Dispatcher):
                                 current_subscription_id = int(_current_subscription_id)
 
                                 if "admin_subscription_expire" in call.data.split():
-                                    self._database.subscriptions.edit_expires_date(
+                                    self._database.subscriptions.edit_expires_at(
                                         subscription_id=current_subscription_id,
                                         expires_at=int(datetime.datetime.now().timestamp()),
+                                    )
+                                    self._database.subscriptions.switch_checked(
+                                        subscription_id=current_subscription_id,
                                     )
 
                                 current_subscription = self._database.subscriptions.get_subscription(
@@ -1059,6 +1108,7 @@ class AiogramClient(aiogram.Dispatcher):
                                     text=self._strings.menu.subscription(
                                         subscription=current_subscription,
                                         user=current_user,
+                                        include_checked=True,
                                     ),
                                     reply_markup=markup_builder.as_markup(),
                                 )
@@ -1651,6 +1701,7 @@ class AiogramClient(aiogram.Dispatcher):
                         text=self._strings.menu.subscription(
                             subscription=current_subscription,
                             user=current_user,
+                            include_checked=True,
                         ),
                         reply_markup=markup_builder.as_markup(),
                     )

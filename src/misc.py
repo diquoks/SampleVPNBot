@@ -450,6 +450,13 @@ class ButtonsContainer:
             callback_data="plans",
         )
 
+    @staticmethod
+    def view_subscriptions(page_id: int = constants.FIRST_PAGE_ID) -> aiogram.types.InlineKeyboardButton:
+        return aiogram.types.InlineKeyboardButton(
+            text="Перейти к подпискам",
+            callback_data=f"subscriptions {page_id}",
+        )
+
     # endregion
 
     # region Helpers

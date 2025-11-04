@@ -127,6 +127,7 @@ class SubscriptionValues(pyquoks.models.IValues):
         "id",
         "plan_id",
         "is_active",
+        "is_checked",
         "subscribed_at",
         "expires_at",
         "tg_id",
@@ -135,6 +136,7 @@ class SubscriptionValues(pyquoks.models.IValues):
     id: int | None
     plan_id: int | None
     is_active: int | None
+    is_checked: int | None
     subscribed_at: int | None
     expires_at: int | None
     tg_id: int | None
